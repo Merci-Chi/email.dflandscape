@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#0f2617">
+  <title>Manage Emails | Desert Forest Landscape Email</title>
+  <link rel="stylesheet" href="styles.css?v=account-pages-1">
+</head>
+<body class="account-page">
+  <header class="topbar">
+    <div class="topbar-left">
+      <img class="topbar-main-logo" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/logo.png" alt="Desert Forest Landscape logo">
+      <a class="topbar-brand" href="https://dflandscape.com" aria-label="Desert Forest Landscape home">
+        <div class="topbar-brand-images">
+          <img class="topbar-brand-text" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/text.png" alt="Desert Forest Landscape">
+          <div class="topbar-slogan-row">
+            <img class="topbar-brand-slogan" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/slogan.png" alt="Turning Over a New Leaf">
+            <img class="topbar-brand-leaf" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/leaf.png" alt="">
+          </div>
+        </div>
+        <span class="topbar-email-label">Email</span>
+      </a>
+    </div>
+    <div class="topbar-actions">
+      <nav class="topbar-nav" aria-label="Account navigation">
+        <a class="topbar-tab" href="mail.html">Mail</a>
+        <a class="topbar-tab active" href="manage-emails.html">Manage Emails</a>
+        <a class="topbar-tab" href="settings.html">Settings</a>
+      </nav>
+      <a class="signout" href="index.html">Sign out</a>
+    </div>
+  </header>
+
+  <main class="account-page-main">
+    <div class="account-page-head">
+      <div class="eyebrow dark">Account</div>
+      <h1>Manage Emails</h1>
+      <p>See the mailbox connected to the account you are currently signed in with.</p>
+    </div>
+
+    <section class="account-card">
+      <h2>Email accounts</h2>
+      <p class="account-card-subtext">Your mailbox follows your signed-in company account automatically.</p>
+      <div id="managedEmailList"></div>
+      <p class="account-help">The email shown here comes directly from the authenticated Supabase account instead of a hardcoded address.</p>
+    </section>
+  </main>
+
+  <script type="module" src="account-pages.js?v=1"></script>
+</body>
+</html>
