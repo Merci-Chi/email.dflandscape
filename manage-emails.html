@@ -26,9 +26,63 @@
       <a class="signout" href="index.html">Sign out</a>
     </div>
   </header>
-
   <main class="account-shell">
-    <aside class="account-sidebar">
+    <aside class="sidebar">
+      <a class="compose" href="mail.html" style="text-decoration:none">
+        <span class="btn-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14"></path>
+            <path d="M5 12h14"></path>
+          </svg>
+        </span>
+        <span>Compose</span>
+      </a>
+
+      <div class="mailbox-title">Mailboxes</div>
+      <nav id="accountList" class="account-list" aria-label="Email accounts"></nav>
+
+      <div class="folder-list">
+        <a class="folder" href="mail.html" style="text-decoration:none">
+          <span class="folder-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 13h4l2 3h4l2-3h4"></path>
+              <path d="M4 13V7a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v4"></path>
+              <path d="M5 13h14v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"></path>
+            </svg>
+          </span>
+          <span class="folder-text">Inbox</span>
+        </a>
+        <a class="folder" href="mail.html" style="text-decoration:none">
+          <span class="folder-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 2 11 13"></path>
+              <path d="M22 2 15 22l-4-9-9-4Z"></path>
+            </svg>
+          </span>
+          <span class="folder-text">Sent</span>
+        </a>
+        <a class="folder" href="mail.html" style="text-decoration:none">
+          <span class="folder-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+            </svg>
+          </span>
+          <span class="folder-text">Drafts</span>
+        </a>
+        <a class="folder" href="mail.html" style="text-decoration:none">
+          <span class="folder-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18"></path>
+              <path d="M8 6V4h8v2"></path>
+              <path d="M19 6l-1 14H6L5 6"></path>
+              <path d="M10 11v6"></path>
+              <path d="M14 11v6"></path>
+            </svg>
+          </span>
+          <span class="folder-text">Trash</span>
+        </a>
+      </div>
 
       <nav class="utility-nav" aria-label="Account navigation">
         <a class="utility-link active" href="manage-emails.html">
@@ -42,7 +96,7 @@
           </span>
           <span>Manage Emails</span>
         </a>
-        <a class="utility-link " href="settings.html">
+        <a class="utility-link" href="settings.html">
           <span class="utility-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"></circle>
@@ -54,21 +108,21 @@
       </nav>
     </aside>
     <div class="account-page-main">
-    <div class="account-page-head">
-      <div class="eyebrow dark">Account</div>
-      <h1>Manage Emails</h1>
-      <p>See the mailbox connected to the account you are currently signed in with.</p>
-    </div>
+      <div class="account-page-head">
+        <div class="eyebrow dark">Account</div>
+        <h1>Manage Emails</h1>
+        <p>See the mailbox connected to the account you are currently signed in with.</p>
+      </div>
 
-    <section class="account-card">
-      <h2>Email accounts</h2>
-      <p class="account-card-subtext">Your mailbox follows your signed-in company account automatically.</p>
-      <div id="managedEmailList"></div>
-      <p class="account-help">The email shown here comes directly from the authenticated Supabase account instead of a hardcoded address.</p>
-    </section>
+      <section class="account-card">
+        <h2>Email accounts</h2>
+        <p class="account-card-subtext">Your mailbox follows your signed-in company account automatically.</p>
+        <div id="managedEmailList"></div>
+        <p class="account-help">The email shown here comes directly from the authenticated Supabase account instead of a hardcoded address.</p>
+      </section>
     </div>
   </main>
 
-  <script type="module" src="account-pages.js?v=1"></script>
+  <script type="module" src="account-pages.js?v=sidebar-sync-1"></script>
 </body>
 </html>

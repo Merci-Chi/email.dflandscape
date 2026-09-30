@@ -15,6 +15,24 @@ const user = session.user
 const email = (user.email || '').toLowerCase()
 const displayName = user.user_metadata?.display_name || email.split('@')[0] || 'Mailbox'
 
+const accountList = document.getElementById('accountList')
+if (accountList) {
+  accountList.innerHTML = `
+    <a class="account-btn active" href="mail.html" style="text-decoration:none">
+      <span class="account-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+          <path d="m4 7 8 6 8-6"></path>
+        </svg>
+      </span>
+      <span class="account-copy">
+        <strong>${escapeHtml(displayName)}</strong>
+        <span>${escapeHtml(email)}</span>
+      </span>
+    </a>
+  `
+}
+
 const settingsEmail = document.getElementById('settingsEmail')
 const settingsDisplayName = document.getElementById('settingsDisplayName')
 if (settingsEmail) settingsEmail.value = email
