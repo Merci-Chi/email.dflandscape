@@ -38,24 +38,17 @@ if (!session?.user) {
 }
 
 const loggedInEmail = (session.user.email || '').toLowerCase()
+const loggedInName =
+  session.user.user_metadata?.display_name ||
+  loggedInEmail.split('@')[0] ||
+  'Mailbox'
 
-const MAILBOXES = {
-  'don@dflandscape.com': {
-    name: 'Don',
-    email: 'don@dflandscape.com'
-  }
-}
-
-const LOGIN_MAILBOX_ACCESS = {
-  'don@dflandscape.com': ['don@dflandscape.com']
-}
-
-const allowedMailboxEmails =
-  LOGIN_MAILBOX_ACCESS[loggedInEmail] || []
-
-const accounts = allowedMailboxEmails
-  .map(email => MAILBOXES[email])
-  .filter(Boolean)
+const accounts = loggedInEmail
+  ? [{
+      name: loggedInName,
+      email: loggedInEmail
+    }]
+  : []
 
 let activeAccount = accounts[0] || null
 let activeFolder = 'Inbox'
