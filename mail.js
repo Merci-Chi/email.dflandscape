@@ -77,9 +77,27 @@ const composeModal = document.getElementById('composeModal')
 const composeFrom = document.getElementById('composeFrom')
 const manageEmailsLink = document.getElementById('manageEmailsLink')
 
-if (loggedInEmail === 'don@dflandscape.com') {
-  manageEmailsLink?.remove()
+async function applyManageEmailsAccess() {
+  // Deny by default. Only an active Supabase row with role=admin can reveal the link.
+  if (manageEmailsLink) manageEmailsLink.hidden = true
+
+  const { data, error } = await supabase
+    .from('dflandscape_mail_access')
+    .select('role, active')
+    .eq('user_id', session.user.id)
+    .maybeSingle()
+
+  const isAdmin =
+    !error &&
+    data?.active === true &&
+    String(data?.role || '').toLowerCase() === 'admin'
+
+  if (manageEmailsLink) {
+    manageEmailsLink.hidden = !isAdmin
+  }
 }
+
+await applyManageEmailsAccess()
 
 function accountIcon() {
   return `
