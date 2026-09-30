@@ -1,3 +1,15 @@
+// Prevent Safari/iOS double-tap zoom.
+let lastTouchEnd = 0
+
+document.addEventListener('touchend', event => {
+  const now = Date.now()
+
+  if (now - lastTouchEnd <= 300) {
+    event.preventDefault()
+  }
+
+  lastTouchEnd = now
+}, { passive: false })
 
 // Keep the mobile viewport fixed at 100% while preserving normal scrolling.
 for (const eventName of ['gesturestart', 'gesturechange', 'gestureend']) {

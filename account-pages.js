@@ -1,3 +1,16 @@
+// Prevent Safari/iOS double-tap zoom.
+let lastTouchEnd = 0
+
+document.addEventListener('touchend', event => {
+  const now = Date.now()
+
+  if (now - lastTouchEnd <= 300) {
+    event.preventDefault()
+  }
+
+  lastTouchEnd = now
+}, { passive: false })
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL = 'https://wfxuxrvygyzonkflpwoq.supabase.co'
