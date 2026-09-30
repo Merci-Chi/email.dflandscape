@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#0f2617">
   <title>Settings | Desert Forest Landscape Email</title>
-  <link rel="stylesheet" href="styles.css?v=account-pages-1">
+  <link rel="stylesheet" href="styles.css?v=left-nav-1">
 </head>
 <body class="account-page">
   <header class="topbar">
@@ -23,16 +23,46 @@
       </a>
     </div>
     <div class="topbar-actions">
-      <nav class="topbar-nav" aria-label="Account navigation">
-        <a class="topbar-tab" href="mail.html">Mail</a>
-        <a class="topbar-tab" href="manage-emails.html">Manage Emails</a>
-        <a class="topbar-tab active" href="settings.html">Settings</a>
-      </nav>
       <a class="signout" href="index.html">Sign out</a>
     </div>
   </header>
 
-  <main class="account-page-main">
+  <main class="account-shell">
+    <aside class="account-sidebar">
+
+      <nav class="utility-nav" aria-label="Account navigation">
+        <a class="utility-link " href="mail.html">
+          <span class="utility-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+              <path d="m4 7 8 6 8-6"></path>
+            </svg>
+          </span>
+          <span>Mail</span>
+        </a>
+        <a class="utility-link " href="manage-emails.html">
+          <span class="utility-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+              <path d="m4 7 8 6 8-6"></path>
+              <path d="M17 15h4"></path>
+              <path d="M19 13v4"></path>
+            </svg>
+          </span>
+          <span>Manage Emails</span>
+        </a>
+        <a class="utility-link active" href="settings.html">
+          <span class="utility-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2v-4h.1A1.7 1.7 0 0 0 3.6 8a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8 3.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2h4v.1A1.7 1.7 0 0 0 15 3.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4H21v4h-.1a1.7 1.7 0 0 0-1.5 1.6Z"></path>
+            </svg>
+          </span>
+          <span>Settings</span>
+        </a>
+      </nav>
+    </aside>
+    <div class="account-page-main">
     <div class="account-page-head">
       <div class="eyebrow dark">Account</div>
       <h1>Settings</h1>
@@ -72,6 +102,7 @@
         <p class="account-message" id="passwordMessage" aria-live="polite"></p>
       </form>
     </section>
+    </div>
   </main>
 
   <script type="module" src="account-pages.js?v=1"></script>
