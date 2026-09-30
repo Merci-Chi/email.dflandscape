@@ -274,3 +274,7 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .account-sidebar{display:block}
   .account-sidebar .utility-nav{margin-top:0;grid-template-columns:repeat(2,1fr)}
 }
+
+
+/* Always fully hide permission-gated UI */
+[hidden]{display:none!important}
