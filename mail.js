@@ -1,3 +1,23 @@
+
+// Keep the mobile viewport fixed at 100% while preserving normal scrolling.
+for (const eventName of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(eventName, event => event.preventDefault(), { passive: false })
+}
+
+document.addEventListener('touchmove', event => {
+  if (event.touches?.length > 1) event.preventDefault()
+}, { passive: false })
+
+document.addEventListener('wheel', event => {
+  if (event.ctrlKey) event.preventDefault()
+}, { passive: false })
+
+document.addEventListener('keydown', event => {
+  if ((event.metaKey || event.ctrlKey) && ['+', '=', '-', '0'].includes(event.key)) {
+    event.preventDefault()
+  }
+})
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL = 'https://wfxuxrvygyzonkflpwoq.supabase.co'
