@@ -288,6 +288,88 @@ function sanitizeEmailHtml(html = '') {
   return '<!doctype html>' + doc.documentElement.outerHTML
 }
 
+function looksLikeHtml(value = '') {
+  const text = String(value || '').trim()
+  if (!text) return false
+  return /<!doctype\s+html|<html[\s>]|<body[\s>]|<(?:div|table|p|span|img|a|style|h[1-6]|br|blockquote)[\s>]/i.test(text)
+}
+
+function getMessageHtml(message = {}) {
+  const candidates = [
+    message.html,
+    message.htmlBody,
+    message.bodyHtml,
+    message.body_html,
+    message.content?.html,
+    message.content?.htmlBody,
+    message.contentHtml
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate
+  }
+
+  if (looksLikeHtml(message.body)) return message.body
+  if (looksLikeHtml(message.text)) return message.text
+
+  return ''
+}
+
+function getMessageText(message = {}) {
+  const candidates = [
+    message.body,
+    message.text,
+    message.textBody,
+    message.bodyText,
+    message.body_text,
+    message.content?.text,
+    message.content?.textBody
+  ]
+
+  for (const candidate of candidates) {
+    if (
+      typeof candidate === 'string' &&
+      candidate.trim() &&
+      !looksLikeHtml(candidate) &&
+      !/^this message does not contain a plain-text body\.?$/i.test(candidate.trim())
+    ) {
+      return candidate
+    }
+  }
+
+  return ''
+}
+
+function resolveCidImages(html = '', attachments = []) {
+  let resolved = String(html || '')
+
+  for (const item of attachments || []) {
+    if (!item?.dataUrl) continue
+
+    const cid = String(
+      item.contentId ||
+      item.contentID ||
+      item.cid ||
+      item.content_id ||
+      ''
+    ).replace(/^<|>$/g, '').trim()
+
+    if (!cid) continue
+
+    const variants = [
+      'cid:' + cid,
+      'cid:<' + cid + '>',
+      'cid:%3C' + cid + '%3E'
+    ]
+
+    for (const variant of variants) {
+      resolved = resolved.split(variant).join(item.dataUrl)
+    }
+  }
+
+  return resolved
+}
+
 function renderAttachments(attachments = []) {
   const visible = attachments.filter(item => item.dataUrl)
   if (!visible.length) return ''
@@ -345,17 +427,23 @@ async function loadMessage(uid) {
 
     const bodyHost = document.getElementById('richMessageBody')
 
-    if (message.html) {
+    const richHtml = getMessageHtml(message)
+    const textContent = getMessageText(message)
+
+    if (richHtml) {
       const frame = document.createElement('iframe')
       frame.className = 'email-frame'
       frame.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox')
       frame.setAttribute('referrerpolicy', 'no-referrer')
-      frame.srcdoc = sanitizeEmailHtml(message.html)
+      frame.setAttribute('title', message.subject || 'Email message')
+      frame.srcdoc = sanitizeEmailHtml(
+        resolveCidImages(richHtml, message.attachments || [])
+      )
       bodyHost.appendChild(frame)
-    } else if (message.body) {
+    } else if (textContent) {
       const textBody = document.createElement('div')
       textBody.className = 'reader-body'
-      textBody.textContent = message.body
+      textBody.textContent = textContent
       bodyHost.appendChild(textBody)
     } else {
       bodyHost.innerHTML = '<div class="reader-body muted-email-body">This message has no readable body.</div>'
