@@ -294,25 +294,78 @@ function looksLikeHtml(value = '') {
   return /<!doctype\s+html|<html[\s>]|<body[\s>]|<(?:div|table|p|span|img|a|style|h[1-6]|br|blockquote)[\s>]/i.test(text)
 }
 
+function collectMessageStrings(value, path = '', output = [], depth = 0) {
+  if (depth > 5 || value == null) return output
+
+  if (typeof value === 'string') {
+    const text = value.trim()
+    if (text) output.push({ path: path.toLowerCase(), value: text })
+    return output
+  }
+
+  if (Array.isArray(value)) {
+    value.slice(0, 30).forEach((item, index) => {
+      collectMessageStrings(item, path + '[' + index + ']', output, depth + 1)
+    })
+    return output
+  }
+
+  if (typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      if (/^(attachments?|headers?|envelope)$/i.test(key)) continue
+      collectMessageStrings(item, path ? path + '.' + key : key, output, depth + 1)
+    }
+  }
+
+  return output
+}
+
+function isBodyPlaceholder(value = '') {
+  return /^this message (?:does not contain a plain-text body|has no readable body)\.?$/i.test(
+    String(value || '').trim()
+  )
+}
+
 function getMessageHtml(message = {}) {
   const candidates = [
     message.html,
     message.htmlBody,
     message.bodyHtml,
     message.body_html,
+    message.textAsHtml,
+    message.text_as_html,
     message.content?.html,
     message.content?.htmlBody,
-    message.contentHtml
+    message.content?.textAsHtml,
+    message.contentHtml,
+    message.data?.html,
+    message.data?.htmlBody,
+    message.data?.textAsHtml
   ]
 
   for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim()) return candidate
+    if (typeof candidate === 'string' && candidate.trim() && looksLikeHtml(candidate)) {
+      return candidate
+    }
   }
 
-  if (looksLikeHtml(message.body)) return message.body
-  if (looksLikeHtml(message.text)) return message.text
+  const strings = collectMessageStrings(message)
 
-  return ''
+  const preferred = strings
+    .filter(item =>
+      !isBodyPlaceholder(item.value) &&
+      looksLikeHtml(item.value) &&
+      /(html|body|content|message|textashtml|source|raw)/i.test(item.path)
+    )
+    .sort((a, b) => b.value.length - a.value.length)
+
+  if (preferred[0]) return preferred[0].value
+
+  const anyHtml = strings
+    .filter(item => !isBodyPlaceholder(item.value) && looksLikeHtml(item.value))
+    .sort((a, b) => b.value.length - a.value.length)
+
+  return anyHtml[0]?.value || ''
 }
 
 function getMessageText(message = {}) {
@@ -322,8 +375,14 @@ function getMessageText(message = {}) {
     message.textBody,
     message.bodyText,
     message.body_text,
+    message.plainText,
+    message.plain_text,
     message.content?.text,
-    message.content?.textBody
+    message.content?.textBody,
+    message.content?.plainText,
+    message.data?.text,
+    message.data?.body,
+    message.data?.textBody
   ]
 
   for (const candidate of candidates) {
@@ -331,13 +390,22 @@ function getMessageText(message = {}) {
       typeof candidate === 'string' &&
       candidate.trim() &&
       !looksLikeHtml(candidate) &&
-      !/^this message does not contain a plain-text body\.?$/i.test(candidate.trim())
+      !isBodyPlaceholder(candidate)
     ) {
       return candidate
     }
   }
 
-  return ''
+  const strings = collectMessageStrings(message)
+    .filter(item =>
+      !isBodyPlaceholder(item.value) &&
+      !looksLikeHtml(item.value) &&
+      item.value.length > 40 &&
+      /(body|text|content|message|plain|source|raw)/i.test(item.path)
+    )
+    .sort((a, b) => b.value.length - a.value.length)
+
+  return strings[0]?.value || ''
 }
 
 function resolveCidImages(html = '', attachments = []) {
