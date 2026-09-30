@@ -138,3 +138,18 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
 .folder-icon{width:19px;height:19px}
 .folder-icon svg{width:19px;height:19px}
 .no-access{padding:10px 8px;font-size:12px;color:#7a847a}
+
+
+/* Auth upgrades */
+.password-wrap{position:relative;display:grid;grid-template-columns:1fr 42px 42px;align-items:center}
+.password-wrap input{grid-column:1/-1;padding-right:88px}
+.password-wrap .icon-btn{position:absolute;top:50%;transform:translateY(-50%);width:34px;height:34px;padding:0;border:0;background:transparent;color:#526052;display:grid;place-items:center;border-radius:7px}
+.password-wrap .icon-btn:hover{background:#eef3ee}
+.password-wrap .icon-btn svg{width:18px;height:18px}
+.password-wrap .password-toggle{right:42px}
+.password-wrap .copy-password{right:6px}
+.primary-auth-btn{width:100%}
+.text-button{border:0!important;background:transparent!important;color:#31573a!important;padding:3px 0!important;font-size:13px!important;font-weight:800!important;text-align:center}
+.text-button:hover{text-decoration:underline}
+.password-hint{font-size:11px;color:#7e887e;margin-top:-6px}
+.form-message.success{color:#2f6b3c}
