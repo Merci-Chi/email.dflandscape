@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0f2617">
+  <title>Desert Forest Landscape Mailbox</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="mail-page">
+  <header class="topbar">
+    <a class="topbar-brand" href="https://dflandscape.com" aria-label="Desert Forest Landscape home">
+      <img class="topbar-corner-logo" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/logo.png" alt="Desert Forest Landscape logo">
+      <div class="topbar-brand-images">
+        <img class="topbar-brand-text" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/text.png" alt="Desert Forest Landscape">
+        <div class="topbar-slogan-row">
+          <img class="topbar-brand-slogan" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/slogan.png" alt="Turning Over a New Leaf">
+          <img class="topbar-brand-leaf" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/leaf.png" alt="">
+        </div>
+      </div>
+      <span class="topbar-email-label">Email</span>
+    </a>
+
+    <div class="topbar-actions">
+      <a class="signout" href="index.html">Sign out</a>
+    </div>
+  </header>
+
+  <main class="mail-shell">
+    <aside class="sidebar">
+      <button class="compose" id="composeBtn">+ Compose</button>
+
+      <div class="mailbox-title">Mailboxes</div>
+      <nav id="accountList" class="account-list" aria-label="Email accounts"></nav>
+
+      <div class="folder-list">
+        <button class="folder active" data-folder="Inbox">Inbox</button>
+        <button class="folder" data-folder="Sent">Sent</button>
+        <button class="folder" data-folder="Drafts">Drafts</button>
+        <button class="folder" data-folder="Trash">Trash</button>
+      </div>
+    </aside>
+
+    <section class="inbox-panel">
+      <div class="inbox-head">
+        <div>
+          <div class="eyebrow dark">Mailbox</div>
+          <h1 id="mailboxHeading">Inbox</h1>
+          <p id="mailboxAddress">don@dflandscape.com</p>
+        </div>
+        <div class="inbox-actions">
+          <input id="searchInput" type="search" placeholder="Search mail">
+          <button id="refreshBtn" title="Refresh">↻</button>
+        </div>
+      </div>
+
+      <div id="messageList" class="message-list"></div>
+    </section>
+
+    <section class="reader-panel" id="readerPanel">
+      <div class="empty-reader">
+        <div class="mail-icon">✉</div>
+        <strong>Select an email</strong>
+        <span>Choose a message to read it here.</span>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop hidden" id="composeModal">
+    <form class="compose-modal" id="composeForm">
+      <div class="compose-head">
+        <strong>New message</strong>
+        <button type="button" id="closeCompose" aria-label="Close">×</button>
+      </div>
+      <label>From<select id="composeFrom"></select></label>
+      <label>To<input type="email" id="composeTo" required></label>
+      <label>Subject<input type="text" id="composeSubject"></label>
+      <textarea id="composeBody" placeholder="Write your message..."></textarea>
+      <div class="compose-actions">
+        <span id="composeStatus">Sending will be connected when the mail backend is added.</span>
+        <button type="submit">Send</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="mail.js"></script>
+</body>
+</html>

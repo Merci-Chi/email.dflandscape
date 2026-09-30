@@ -1,0 +1,10 @@
+Exact Desert Forest Landscape brand assets used by this site:
+
+text.png
+https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/text.png
+
+slogan.png
+https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/slogan.png
+
+leaf.png
+https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/leaf.png

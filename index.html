@@ -1,1 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0f2617">
+  <title>Desert Forest Landscape Email</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="login-page">
+  <main class="login-wrap">
+    <section class="login-card">
+      <div class="login-brand-header">
+        <a class="brand brand-full" href="https://dflandscape.com" aria-label="Desert Forest Landscape home">
+          <img class="brand-text" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/text.png" alt="Desert Forest Landscape">
+          <div class="brand-slogan-row">
+            <img class="brand-slogan" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/slogan.png" alt="Turning Over a New Leaf">
+            <img class="brand-leaf" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/leaf.png" alt="">
+          </div>
+        </a>
+      </div>
 
+      <div class="login-card-body">
+        <div class="eyebrow">Company Mail</div>
+        <h1>Email</h1>
+        <p class="subtext">Sign in to your company mailbox.</p>
+
+        <form id="loginForm" class="login-form">
+          <label>
+            Email
+            <input id="email" type="email" autocomplete="username" placeholder="name@dflandscape.com" required>
+          </label>
+          <label>
+            Password
+            <input id="password" type="password" autocomplete="current-password" placeholder="Password" required>
+          </label>
+          <button type="submit">Sign in</button>
+          <p id="loginMessage" class="form-message" aria-live="polite"></p>
+        </form>
+
+        <a class="preview-link" href="mail.html">Preview mailbox layout</a>
+        <p class="small-note">Secure login will be connected to Supabase next.</p>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

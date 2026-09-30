@@ -1,0 +1,115 @@
+*{box-sizing:border-box}
+:root{--green:#0f2617;--green2:#173622;--green3:#2f4d35;--gold:#d7b360;--cream:#f7f4ed;--paper:#fff;--ink:#1f241f;--muted:#6f786f;--line:#dde3dd;--soft:#f3f6f3;--danger:#a13d35;--shadow:0 18px 55px rgba(8,23,13,.15)}
+html,body{margin:0;min-height:100%;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--ink);background:var(--cream)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+a{color:inherit}
+
+.login-page{min-height:100vh;background:linear-gradient(135deg,#08170d,#173622);display:grid;place-items:center;padding:24px}
+.login-wrap{width:min(100%,460px)}
+.login-card{background:#fff;border:1px solid rgba(215,179,96,.28);border-radius:18px;box-shadow:var(--shadow);text-align:center;overflow:hidden}
+.login-brand-header{background:linear-gradient(90deg,#12311f 0%,#0f2617 55%,#173622 100%);padding:28px 24px 24px;border-bottom:1px solid rgba(255,255,255,.08)}
+.login-card-body{padding:28px 34px 34px}
+.brand{display:inline-flex;justify-content:center;margin-bottom:0;text-decoration:none}
+.brand-full{width:min(100%,320px);flex-direction:column;align-items:center;gap:0}
+.brand-text{width:100%;max-width:300px;height:auto;object-fit:contain;display:block}
+.brand-slogan-row{display:flex;align-items:flex-end;justify-content:center;width:100%;margin-top:-10px}
+.brand-slogan{width:78%;max-width:235px;height:auto;object-fit:contain}
+.brand-leaf{width:42px;height:42px;object-fit:contain;margin-left:4px;margin-bottom:-5px;transform:rotate(70deg)}
+.eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:11px;font-weight:900;color:#63705f}
+.eyebrow.dark{color:#788178}
+.login-card h1{margin:4px 0 6px;font-size:34px;color:var(--green)}
+.subtext{margin:0 0 28px;color:var(--muted)}
+.login-form{text-align:left;display:grid;gap:15px}
+.login-form label,.compose-modal label{display:grid;gap:7px;font-size:13px;font-weight:800;color:#394239}
+input,select,textarea{width:100%;border:1px solid #ccd5cc;border-radius:9px;background:#fff;color:var(--ink);outline:none;transition:.15s border-color,.15s box-shadow}
+input,select{height:44px;padding:0 12px}
+textarea{padding:12px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3px rgba(47,77,53,.12)}
+.login-form button,.compose{border:0;border-radius:9px;background:var(--green2);color:#fff;font-weight:900;padding:13px 16px}
+.login-form button:hover,.compose:hover{background:#21482d}
+.form-message{min-height:18px;margin:0;text-align:center;font-size:13px;color:var(--danger)}
+.preview-link{display:inline-block;margin-top:12px;color:#2f5a38;font-size:13px;font-weight:800}
+.small-note{font-size:12px;color:#8b948b;margin:18px 0 0}
+
+.topbar{height:78px;background:linear-gradient(90deg,#12311f,#0f2617 58%,#173622);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-bottom:1px solid rgba(255,255,255,.08)}
+.topbar-brand{display:flex;align-items:center;gap:14px;text-decoration:none;color:#fff;min-width:0}
+.topbar-brand-images{display:flex;flex-direction:column;width:300px;min-width:0}
+.topbar-brand-text{width:100%;height:auto;object-fit:contain;display:block}
+.topbar-slogan-row{display:flex;align-items:flex-end;margin-top:-9px}
+.topbar-brand-slogan{width:78%;height:auto;object-fit:contain}
+.topbar-brand-leaf{width:34px;height:34px;object-fit:contain;margin-left:3px;margin-bottom:-5px;transform:rotate(70deg)}
+.topbar-email-label{font-size:26px;color:#eef4ed;font-weight:900;border-left:1px solid rgba(255,255,255,.18);padding-left:16px;line-height:1}
+.topbar-actions{display:flex;align-items:center;gap:14px}
+.topbar-corner-logo{width:52px;height:52px;object-fit:contain;display:block;filter:drop-shadow(0 3px 10px rgba(0,0,0,.18))}
+.signout{text-decoration:none;font-size:13px;font-weight:800;color:#eef4ed;border:1px solid rgba(255,255,255,.16);padding:9px 12px;border-radius:8px;white-space:nowrap}
+
+.mail-page{min-height:100vh;background:#edf1ed;overflow:hidden}
+.mail-shell{height:calc(100vh - 78px);display:grid;grid-template-columns:260px minmax(340px,440px) 1fr;background:#fff}
+.sidebar{border-right:1px solid var(--line);padding:18px 14px;background:#f7f9f7;overflow:auto}
+.compose{width:100%;margin-bottom:22px}
+.mailbox-title{text-transform:uppercase;letter-spacing:.11em;font-size:10px;font-weight:900;color:#899289;margin:0 8px 8px}
+.account-list{display:grid;gap:4px}
+.account-btn{border:0;background:transparent;text-align:left;border-radius:8px;padding:10px;color:#3a433a}
+.account-btn strong{display:block;font-size:13px}
+.account-btn span{display:block;font-size:11px;color:#7a847a;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+.account-btn.active{background:#e6eee7;color:#173622}
+.account-btn.active span{color:#59715c}
+.folder-list{border-top:1px solid var(--line);margin-top:18px;padding-top:14px;display:grid;gap:3px}
+.folder{border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:7px;color:#596259;font-weight:700}
+.folder.active{background:#edf2ed;color:#16371f}
+.inbox-panel{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.inbox-head{padding:18px;border-bottom:1px solid var(--line);display:flex;gap:12px;justify-content:space-between;align-items:flex-end}
+.inbox-head h1{font-size:24px;margin:2px 0;color:#19311f}
+.inbox-head p{font-size:12px;color:#7d877d;margin:0}
+.inbox-actions{display:flex;align-items:center;gap:7px}
+.inbox-actions input{width:150px;height:38px}
+.inbox-actions button{width:38px;height:38px;border:1px solid #ccd4cc;background:#fff;border-radius:8px;font-size:18px;color:#415041}
+.message-list{overflow:auto;flex:1}
+.message-row{width:100%;border:0;border-bottom:1px solid #edf0ed;background:#fff;text-align:left;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:6px 10px}
+.message-row:hover,.message-row.active{background:#f4f7f4}
+.message-row.unread{background:#fbfcfb}
+.message-row.unread .sender,.message-row.unread .subject{font-weight:900}
+.sender{font-size:13px;color:#243024}
+.time{font-size:11px;color:#8b948b}
+.subject{font-size:13px;color:#374137;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.snippet{grid-column:1/-1;font-size:12px;color:#788178;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reader-panel{min-width:0;background:#fff;overflow:auto}
+.empty-reader{height:100%;display:grid;place-content:center;text-align:center;color:#8d968d;gap:6px}
+.mail-icon{font-size:35px;color:#96a496}
+.empty-reader strong{color:#526052}
+.reader{padding:28px;max-width:850px;margin:0 auto}
+.reader h2{margin:8px 0 8px;font-size:25px;color:#1b3020}
+.reader-meta{font-size:12px;color:#7e887e;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.reader-body{font-size:14px;line-height:1.65;color:#303930;white-space:pre-wrap;padding-top:20px}
+.modal-backdrop{position:fixed;inset:0;background:rgba(7,17,10,.48);display:grid;place-items:center;padding:18px;z-index:30}
+.hidden{display:none}
+.compose-modal{width:min(680px,100%);background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:18px;display:grid;gap:12px}
+.compose-head{display:flex;justify-content:space-between;align-items:center;color:#173622}
+.compose-head button{border:0;background:transparent;font-size:28px;color:#687268}
+.compose-modal textarea{min-height:220px}
+.compose-actions{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.compose-actions span{font-size:11px;color:#879087}
+.compose-actions button{border:0;border-radius:8px;background:var(--green2);color:#fff;font-weight:900;padding:10px 22px}
+
+@media(max-width:900px){
+  .topbar-brand-images{width:220px}
+  .topbar-email-label{font-size:22px}
+  .mail-shell{grid-template-columns:210px 1fr}
+  .reader-panel{display:none}
+  .inbox-panel{border-right:0}
+}
+@media(max-width:650px){
+  .topbar{height:72px;padding:0 14px}
+  .topbar-brand-images{width:170px}
+  .topbar-email-label{display:none}
+  .topbar-brand-leaf{width:26px;height:26px}
+  .topbar-corner-logo{width:38px;height:38px}
+  .mail-shell{height:calc(100vh - 72px);grid-template-columns:1fr}
+  .sidebar{display:none}
+  .inbox-head{align-items:flex-start;flex-direction:column}
+  .inbox-actions{width:100%}
+  .inbox-actions input{flex:1;width:auto}
+  .login-brand-header{padding:22px 18px 18px}
+  .login-card-body{padding:24px 20px 26px}
+}
