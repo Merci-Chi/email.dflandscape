@@ -75,6 +75,11 @@ const readerPanel = document.getElementById('readerPanel')
 const searchInput = document.getElementById('searchInput')
 const composeModal = document.getElementById('composeModal')
 const composeFrom = document.getElementById('composeFrom')
+const manageEmailsLink = document.getElementById('manageEmailsLink')
+
+if (loggedInEmail === 'don@dflandscape.com') {
+  manageEmailsLink?.remove()
+}
 
 function accountIcon() {
   return `
