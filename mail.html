@@ -23,7 +23,14 @@
       </a>
     </div>
 
-    <a class="signout" href="index.html">Sign out</a>
+    <div class="topbar-actions">
+      <nav class="topbar-nav" aria-label="Account navigation">
+        <a class="topbar-tab active" href="mail.html">Mail</a>
+        <a class="topbar-tab" href="manage-emails.html">Manage Emails</a>
+        <a class="topbar-tab" href="settings.html">Settings</a>
+      </nav>
+      <a class="signout" href="index.html">Sign out</a>
+    </div>
   </header>
 
   <main class="mail-shell">
@@ -90,7 +97,7 @@
         <div>
           <div class="eyebrow dark">Mailbox</div>
           <h1 id="mailboxHeading">Inbox</h1>
-          <p id="mailboxAddress">don@dflandscape.com</p>
+          <p id="mailboxAddress"></p>
         </div>
         <div class="inbox-actions">
           <input id="searchInput" type="search" placeholder="Search mail">
@@ -137,6 +144,6 @@
     </form>
   </div>
 
-  <script type="module" src="mail.js?v=realmail-5"></script>
+  <script type="module" src="mail.js?v=account-pages-1"></script>
 </body>
 </html>

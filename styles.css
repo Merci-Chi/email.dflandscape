@@ -198,3 +198,48 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
 .reader-panel,.message-list,.sidebar,.compose-modal{overscroll-behavior:contain}
 .reader img,.reader video,.reader canvas,.reader svg{max-width:100%;height:auto}
 .reader table{max-width:100%;overflow-wrap:anywhere}
+
+
+/* Account navigation + account pages */
+.topbar-nav{display:flex;align-items:center;gap:4px}
+.topbar-tab{text-decoration:none;font-size:12px;font-weight:800;color:#dfe9df;padding:8px 10px;border-radius:8px;white-space:nowrap}
+.topbar-tab:hover,.topbar-tab.active{background:rgba(255,255,255,.12);color:#fff}
+.account-page{min-height:100vh;min-height:100dvh;background:#edf1ed}
+.account-page-main{width:min(920px,calc(100% - 32px));margin:32px auto;padding-bottom:40px}
+.account-page-head{margin-bottom:20px}
+.account-page-head h1{margin:4px 0 6px;color:#19311f;font-size:30px}
+.account-page-head p{margin:0;color:#6f786f}
+.account-card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 35px rgba(8,23,13,.08);padding:22px;margin-bottom:18px}
+.account-card h2{margin:0 0 6px;color:#19311f;font-size:19px}
+.account-card-subtext{margin:0 0 18px;color:#768076;font-size:13px}
+.account-form{display:grid;gap:16px}
+.account-form label{display:grid;gap:7px;font-size:13px;font-weight:800;color:#394239}
+.account-form button,.account-primary-btn{border:0;border-radius:9px;background:var(--green2);color:#fff;font-weight:900;padding:12px 16px;width:max-content}
+.account-form button:disabled{opacity:.65;cursor:wait}
+.account-message{min-height:18px;margin:0;font-size:13px;color:var(--danger)}
+.account-message.success{color:#2f6b3c}
+.email-account-row{display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid var(--line);border-radius:11px;padding:16px;background:#fbfcfb}
+.email-account-copy{min-width:0}
+.email-account-copy strong{display:block;color:#263326;font-size:14px;margin-bottom:3px}
+.email-account-copy span{display:block;color:#768076;font-size:12px;overflow-wrap:anywhere}
+.email-badge{font-size:11px;font-weight:900;color:#2f5a38;background:#e7f0e8;padding:6px 9px;border-radius:999px;white-space:nowrap}
+.readonly-field{background:#f4f6f4;color:#687268}
+.account-help{font-size:12px;line-height:1.55;color:#7a847a;margin:14px 0 0}
+@media(max-width:760px){
+  .topbar-actions{gap:6px}
+  .topbar-nav{gap:2px}
+  .topbar-tab{font-size:11px;padding:7px 7px}
+  .account-page-main{width:min(100% - 20px,920px);margin:20px auto}
+}
+@media(max-width:650px){
+  .topbar-brand{display:none}
+  .topbar-left{flex:0 0 auto}
+  .topbar-main-logo{width:34px;height:34px}
+  .topbar-actions{flex:1;justify-content:flex-end;min-width:0}
+  .topbar-nav{min-width:0}
+  .topbar-tab{padding:7px 6px}
+  .signout{padding:7px 7px}
+  .account-page-main{margin:16px auto}
+  .account-card{padding:18px}
+  .email-account-row{align-items:flex-start}
+}
