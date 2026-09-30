@@ -265,3 +265,12 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .account-sidebar .utility-link{justify-content:center;padding:9px 6px;font-size:11px}
   .account-sidebar .utility-link span:last-child{white-space:nowrap}
 }
+
+
+/* Keep utility links fixed in the same sidebar position */
+.sidebar,.account-sidebar{display:flex;flex-direction:column}
+.sidebar .utility-nav,.account-sidebar .utility-nav{margin-top:auto}
+@media(max-width:650px){
+  .account-sidebar{display:block}
+  .account-sidebar .utility-nav{margin-top:0;grid-template-columns:repeat(2,1fr)}
+}
