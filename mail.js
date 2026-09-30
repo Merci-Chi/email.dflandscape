@@ -410,6 +410,7 @@ async function loadMessage(uid) {
 
     readerPanel.innerHTML = `
       <article class="reader reader-rich">
+        <button class="mobile-reader-back" id="mobileReaderBack" type="button" aria-label="Back to inbox">← Back</button>
         <div class="eyebrow dark">Message</div>
         <h2>${escapeHtml(message.subject || '(No subject)')}</h2>
 
@@ -426,6 +427,13 @@ async function loadMessage(uid) {
     `
 
     const bodyHost = document.getElementById('richMessageBody')
+    readerPanel.classList.add('mobile-open')
+
+    document.getElementById('mobileReaderBack')?.addEventListener('click', () => {
+      readerPanel.classList.remove('mobile-open')
+      activeMessageId = null
+      renderMessages()
+    })
 
     const richHtml = getMessageHtml(message)
     const textContent = getMessageText(message)
@@ -460,6 +468,7 @@ async function loadMessage(uid) {
 }
 
 function renderReader() {
+  readerPanel.classList.remove('mobile-open')
   readerPanel.innerHTML = `
     <div class="empty-reader">
       ${emptyMailIcon()}
