@@ -1,3 +1,17 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const SUPABASE_URL = 'https://wfxuxrvygyzonkflpwoq.supabase.co'
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_e2h4t8AvCobzftt36UrDbw_NJGq8qlJ'
+const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+
+const { data: { session } } = await supabase.auth.getSession()
+if (!session?.user) {
+  window.location.replace('index.html')
+  throw new Error('Not authenticated')
+}
+
+const loggedInEmail = (session.user.email || '').toLowerCase()
+
 const MAILBOXES = {
   'don@dflandscape.com': {
     name: 'Don',
@@ -27,7 +41,6 @@ const demoMessages = {
   ]
 }
 
-const loggedInEmail = (sessionStorage.getItem('dfEmailLogin') || 'don@dflandscape.com').toLowerCase()
 const allowedMailboxEmails = LOGIN_MAILBOX_ACCESS[loggedInEmail] || []
 const accounts = allowedMailboxEmails.map(email => MAILBOXES[email]).filter(Boolean)
 
@@ -199,8 +212,10 @@ document.getElementById('composeForm').addEventListener('submit', e => {
   document.getElementById('composeStatus').textContent = 'SMTP sending is not connected yet.'
 })
 
-document.querySelector('.signout').addEventListener('click', () => {
-  sessionStorage.removeItem('dfEmailLogin')
+document.querySelector('.signout').addEventListener('click', async (event) => {
+  event.preventDefault()
+  await supabase.auth.signOut()
+  window.location.replace('index.html')
 })
 
 renderAll()

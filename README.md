@@ -1,25 +1,15 @@
-# Desert Forest Landscape Email
+# Desert Forest Landscape Email Portal
 
-Simple front-end starter for `email.dflandscape.com`.
+Static GitHub Pages frontend for `email.dflandscape.com`.
 
-## Current mailbox access
+## Current setup
 
-For now only one login/mailbox is enabled:
-
-- Login: `don@dflandscape.com`
-- Mailbox shown: `don@dflandscape.com`
-
-The project has an access map so a login can later be granted multiple mailboxes. When Office and Estimates are ready, Don can be mapped to all three.
-
-## Don mailbox servers
-
-- IMAP server: `imap.hostinger.com`
-- SMTP server: `smtp.hostinger.com`
-
-Do **not** put the mailbox password in `app.js`, `mail.js`, `config.example.js`, GitHub Pages, or any other browser-visible file.
+- Supabase Auth handles the website login.
+- `don@dflandscape.com` is the only mailbox shown right now.
+- The mailbox page requires an active Supabase session.
+- Hostinger mailbox credentials are **not** stored in this repo.
+- Hostinger IMAP/SMTP secrets should stay in Supabase Edge Function Secrets.
 
 ## Next backend step
 
-Use Supabase Auth for the website login, then call a protected backend/Edge Function to read and send mail. The backend keeps the Hostinger mailbox credentials secret and connects to IMAP/SMTP on behalf of the signed-in user.
-
-The current login is only a local preview flow and is not security/authentication yet.
+Connect the mailbox UI to a protected Supabase Edge Function that reads the Hostinger secrets and handles IMAP/SMTP server-side.
