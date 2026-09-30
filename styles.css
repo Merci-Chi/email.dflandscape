@@ -8,10 +8,12 @@ a{color:inherit}
 .login-page{min-height:100vh;background:linear-gradient(135deg,#08170d,#173622);display:grid;place-items:center;padding:24px}
 .login-wrap{width:min(100%,460px)}
 .login-card{background:#fff;border:1px solid rgba(215,179,96,.28);border-radius:18px;box-shadow:var(--shadow);text-align:center;overflow:hidden}
-.login-brand-header{background:linear-gradient(90deg,#12311f 0%,#0f2617 55%,#173622 100%);padding:28px 24px 24px;border-bottom:1px solid rgba(255,255,255,.08)}
+.login-brand-header{background:linear-gradient(90deg,#12311f 0%,#0f2617 55%,#173622 100%);padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.08)}
 .login-card-body{padding:28px 34px 34px}
 .brand{display:inline-flex;justify-content:center;margin-bottom:0;text-decoration:none}
-.login-main-logo{width:88px;height:88px;object-fit:contain;display:block;margin:0 auto 8px;filter:drop-shadow(0 4px 12px rgba(0,0,0,.2))}
+.login-header-brand{display:flex;align-items:center;justify-content:flex-start;gap:12px;text-decoration:none;width:100%}
+.login-main-logo{width:52px;height:52px;object-fit:contain;display:block;flex:0 0 auto;filter:drop-shadow(0 3px 10px rgba(0,0,0,.18))}
+.login-brand-images{display:flex;flex-direction:column;min-width:0;flex:1;max-width:300px}
 .login-form button:disabled{opacity:.7;cursor:wait}
 
 .brand-full{width:min(100%,320px);flex-direction:column;align-items:center;gap:0}
@@ -116,7 +118,10 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .inbox-head{align-items:flex-start;flex-direction:column}
   .inbox-actions{width:100%}
   .inbox-actions input{flex:1;width:auto}
-  .login-brand-header{padding:22px 18px 18px}
+  .login-brand-header{padding:14px 16px}
+  .login-main-logo{width:44px;height:44px}
+  .login-header-brand{gap:10px}
+  .login-brand-images{max-width:260px}
   .login-card-body{padding:24px 20px 26px}
 }
 
