@@ -251,6 +251,66 @@ function renderMessages() {
     })
 }
 
+function sanitizeEmailHtml(html = '') {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+
+  doc.querySelectorAll('script,iframe,object,embed,form,input,button,textarea,select,base').forEach(el => el.remove())
+  doc.querySelectorAll('meta[http-equiv]').forEach(el => el.remove())
+
+  doc.querySelectorAll('*').forEach(el => {
+    for (const attr of [...el.attributes]) {
+      const name = attr.name.toLowerCase()
+      const value = attr.value.trim().toLowerCase()
+
+      if (name.startsWith('on')) el.removeAttribute(attr.name)
+      if ((name === 'href' || name === 'src' || name === 'xlink:href') && value.startsWith('javascript:')) {
+        el.removeAttribute(attr.name)
+      }
+    }
+  })
+
+  doc.querySelectorAll('a[href]').forEach(link => {
+    link.setAttribute('target', '_blank')
+    link.setAttribute('rel', 'noopener noreferrer')
+  })
+
+  const style = doc.createElement('style')
+  style.textContent = `
+    html,body{margin:0;padding:0;background:#fff;color:#222;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;overflow-wrap:anywhere}
+    body{padding:18px;box-sizing:border-box}
+    img{max-width:100%!important;height:auto!important}
+    table{max-width:100%!important}
+    a{color:#245f35}
+  `
+  doc.head.appendChild(style)
+
+  return '<!doctype html>' + doc.documentElement.outerHTML
+}
+
+function renderAttachments(attachments = []) {
+  const visible = attachments.filter(item => item.dataUrl)
+  if (!visible.length) return ''
+
+  return `
+    <div class="email-attachments">
+      <div class="email-attachments-title">Attachments</div>
+      <div class="email-attachment-list">
+        ${visible.map(item => {
+          const name = escapeHtml(item.filename || 'Attachment')
+          const isImage = String(item.mimeType || '').startsWith('image/')
+          return `
+            <a class="email-attachment" href="${item.dataUrl}" download="${name}" target="_blank" rel="noopener">
+              ${isImage ? `<img src="${item.dataUrl}" alt="${name}">` : '<span class="attachment-file-icon">↧</span>'}
+              <span>${name}</span>
+            </a>
+          `
+        }).join('')}
+      </div>
+    </div>
+  `
+}
+
 async function loadMessage(uid) {
   readerPanel.innerHTML = `
     <div class="empty-reader">
@@ -267,38 +327,39 @@ async function loadMessage(uid) {
     })
 
     readerPanel.innerHTML = `
-      <article class="reader">
-        <div class="eyebrow dark">
-          Message
-        </div>
-
-        <h2>
-          ${escapeHtml(
-            message.subject || '(No subject)'
-          )}
-        </h2>
+      <article class="reader reader-rich">
+        <div class="eyebrow dark">Message</div>
+        <h2>${escapeHtml(message.subject || '(No subject)')}</h2>
 
         <div class="reader-meta">
-          From:
-          ${escapeHtml(message.sender || '')}
-          &lt;${escapeHtml(message.from || '')}&gt;
-          <br>
-
-          To:
-          ${escapeHtml(message.to || activeAccount.email)}
-
-          <br>
-
-          ${escapeHtml(
-            formatFullDate(message.date)
-          )}
+          From: ${escapeHtml(message.sender || '')}
+          &lt;${escapeHtml(message.from || '')}&gt;<br>
+          To: ${escapeHtml(message.to || activeAccount.email)}<br>
+          ${escapeHtml(formatFullDate(message.date))}
         </div>
 
-        <div class="reader-body">
-          ${escapeHtml(message.body || '')}
-        </div>
+        <div id="richMessageBody" class="rich-message-body"></div>
+        ${renderAttachments(message.attachments || [])}
       </article>
     `
+
+    const bodyHost = document.getElementById('richMessageBody')
+
+    if (message.html) {
+      const frame = document.createElement('iframe')
+      frame.className = 'email-frame'
+      frame.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox')
+      frame.setAttribute('referrerpolicy', 'no-referrer')
+      frame.srcdoc = sanitizeEmailHtml(message.html)
+      bodyHost.appendChild(frame)
+    } else if (message.body) {
+      const textBody = document.createElement('div')
+      textBody.className = 'reader-body'
+      textBody.textContent = message.body
+      bodyHost.appendChild(textBody)
+    } else {
+      bodyHost.innerHTML = '<div class="reader-body muted-email-body">This message has no readable body.</div>'
+    }
   } catch (error) {
     readerPanel.innerHTML = `
       <div class="empty-reader">
