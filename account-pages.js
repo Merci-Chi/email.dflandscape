@@ -28,6 +28,18 @@ const user = session.user
 const email = (user.email || '').toLowerCase()
 const displayName = user.user_metadata?.display_name || email.split('@')[0] || 'Mailbox'
 
+const canManageEmails = email !== 'don@dflandscape.com'
+const manageEmailsLink = document.getElementById('manageEmailsLink')
+
+if (!canManageEmails) {
+  manageEmailsLink?.remove()
+
+  if (window.location.pathname.endsWith('/manage-emails.html')) {
+    window.location.replace('mail.html')
+    throw new Error('No access to Manage Emails')
+  }
+}
+
 const accountList = document.getElementById('accountList')
 if (accountList) {
   accountList.innerHTML = `
