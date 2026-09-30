@@ -25,26 +25,97 @@
 
       <div class="login-card-body">
         <div class="eyebrow">Company Mail</div>
-        <h1>Email</h1>
-        <p class="subtext">Sign in to your company mailbox.</p>
+        <h1 id="authTitle">Email</h1>
+        <p class="subtext" id="authSubtext">Sign in to your company mailbox.</p>
 
         <form id="loginForm" class="login-form">
           <label>
             Email
             <input id="email" type="email" autocomplete="username" placeholder="name@dflandscape.com" required>
           </label>
+
           <label>
             Password
-            <input id="password" type="password" autocomplete="current-password" placeholder="Password" required>
+            <div class="password-wrap">
+              <input id="password" type="password" autocomplete="current-password" placeholder="Password" required>
+              <button class="icon-btn password-toggle" type="button" data-target="password" aria-label="Show password" title="Show password"></button>
+              <button class="icon-btn copy-password" type="button" data-target="password" aria-label="Copy password" title="Copy password"></button>
+            </div>
           </label>
-          <button type="submit">Sign in</button>
+
+          <button class="primary-auth-btn" type="submit">Sign in</button>
+          <button class="text-button" id="forgotPasswordBtn" type="button">Forgot password?</button>
           <p id="loginMessage" class="form-message" aria-live="polite"></p>
+        </form>
+
+        <form id="forgotForm" class="login-form hidden">
+          <label>
+            Email
+            <input id="forgotEmail" type="email" autocomplete="email" placeholder="name@dflandscape.com" required>
+          </label>
+          <button class="primary-auth-btn" type="submit">Send reset link</button>
+          <button class="text-button" id="backToLoginBtn" type="button">Back to sign in</button>
+          <p id="forgotMessage" class="form-message" aria-live="polite"></p>
+        </form>
+
+        <form id="firstLoginForm" class="login-form hidden">
+          <label>
+            Display name
+            <input id="displayName" type="text" autocomplete="name" placeholder="How your name should appear" maxlength="80" required>
+          </label>
+
+          <label>
+            New password
+            <div class="password-wrap">
+              <input id="firstNewPassword" type="password" autocomplete="new-password" placeholder="New password" required>
+              <button class="icon-btn password-toggle" type="button" data-target="firstNewPassword" aria-label="Show password" title="Show password"></button>
+              <button class="icon-btn copy-password" type="button" data-target="firstNewPassword" aria-label="Copy password" title="Copy password"></button>
+            </div>
+          </label>
+
+          <label>
+            Confirm new password
+            <div class="password-wrap">
+              <input id="firstConfirmPassword" type="password" autocomplete="new-password" placeholder="Confirm new password" required>
+              <button class="icon-btn password-toggle" type="button" data-target="firstConfirmPassword" aria-label="Show password" title="Show password"></button>
+              <button class="icon-btn copy-password" type="button" data-target="firstConfirmPassword" aria-label="Copy password" title="Copy password"></button>
+            </div>
+          </label>
+
+          <div class="password-hint">Use at least 8 characters.</div>
+          <button class="primary-auth-btn" type="submit">Finish setup</button>
+          <p id="firstLoginMessage" class="form-message" aria-live="polite"></p>
+        </form>
+
+        <form id="resetForm" class="login-form hidden">
+          <label>
+            New password
+            <div class="password-wrap">
+              <input id="resetPassword" type="password" autocomplete="new-password" placeholder="New password" required>
+              <button class="icon-btn password-toggle" type="button" data-target="resetPassword" aria-label="Show password" title="Show password"></button>
+              <button class="icon-btn copy-password" type="button" data-target="resetPassword" aria-label="Copy password" title="Copy password"></button>
+            </div>
+          </label>
+
+          <label>
+            Confirm new password
+            <div class="password-wrap">
+              <input id="resetConfirmPassword" type="password" autocomplete="new-password" placeholder="Confirm new password" required>
+              <button class="icon-btn password-toggle" type="button" data-target="resetConfirmPassword" aria-label="Show password" title="Show password"></button>
+              <button class="icon-btn copy-password" type="button" data-target="resetConfirmPassword" aria-label="Copy password" title="Copy password"></button>
+            </div>
+          </label>
+
+          <div class="password-hint">Use at least 8 characters.</div>
+          <button class="primary-auth-btn" type="submit">Change password</button>
+          <p id="resetMessage" class="form-message" aria-live="polite"></p>
         </form>
 
         <p class="small-note">Secure company email access.</p>
       </div>
     </section>
   </main>
-  <script type="module" src="app.js"></script>
+
+  <script type="module" src="app.js?v=auth-2"></script>
 </body>
 </html>
