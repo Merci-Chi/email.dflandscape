@@ -28,16 +28,30 @@ const user = session.user
 const email = (user.email || '').toLowerCase()
 const displayName = user.user_metadata?.display_name || email.split('@')[0] || 'Mailbox'
 
-const canManageEmails = email !== 'don@dflandscape.com'
 const manageEmailsLink = document.getElementById('manageEmailsLink')
+if (manageEmailsLink) manageEmailsLink.hidden = true
 
-if (!canManageEmails) {
-  manageEmailsLink?.remove()
+const { data: accessRow, error: accessError } = await supabase
+  .from('dflandscape_mail_access')
+  .select('role, active')
+  .eq('user_id', user.id)
+  .maybeSingle()
 
-  if (window.location.pathname.endsWith('/manage-emails.html')) {
-    window.location.replace('mail.html')
-    throw new Error('No access to Manage Emails')
-  }
+const canManageEmails =
+  !accessError &&
+  accessRow?.active === true &&
+  String(accessRow?.role || '').toLowerCase() === 'admin'
+
+if (manageEmailsLink) {
+  manageEmailsLink.hidden = !canManageEmails
+}
+
+if (
+  window.location.pathname.endsWith('/manage-emails.html') &&
+  !canManageEmails
+) {
+  window.location.replace('mail.html')
+  throw new Error('No access to Manage Emails')
 }
 
 const accountList = document.getElementById('accountList')
