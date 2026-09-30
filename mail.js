@@ -2,9 +2,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL = 'https://wfxuxrvygyzonkflpwoq.supabase.co'
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_e2h4t8AvCobzftt36UrDbw_NJGq8qlJ'
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
 
-const { data: { session } } = await supabase.auth.getSession()
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+)
+
+const {
+  data: { session }
+} = await supabase.auth.getSession()
+
 if (!session?.user) {
   window.location.replace('index.html')
   throw new Error('Not authenticated')
@@ -19,34 +26,21 @@ const MAILBOXES = {
   }
 }
 
-// This determines which actual mailboxes an authenticated login can see.
-// Later, when Office and Estimates are connected, Don can simply be mapped
-// to all three addresses here or loaded from Supabase instead.
 const LOGIN_MAILBOX_ACCESS = {
   'don@dflandscape.com': ['don@dflandscape.com']
 }
 
-const demoMessages = {
-  'don@dflandscape.com': [
-    {
-      id: 1,
-      sender: 'Desert Forest Landscape',
-      from: 'don@dflandscape.com',
-      subject: 'Mailbox ready',
-      snippet: 'Don\'s mailbox is ready for the Hostinger mail connection.',
-      time: 'Today',
-      unread: true,
-      body: 'This is the Desert Forest Landscape email portal preview.\n\nThe next backend step will connect this mailbox to Hostinger IMAP for incoming mail and SMTP for outgoing mail.'
-    }
-  ]
-}
+const allowedMailboxEmails =
+  LOGIN_MAILBOX_ACCESS[loggedInEmail] || []
 
-const allowedMailboxEmails = LOGIN_MAILBOX_ACCESS[loggedInEmail] || []
-const accounts = allowedMailboxEmails.map(email => MAILBOXES[email]).filter(Boolean)
+const accounts = allowedMailboxEmails
+  .map(email => MAILBOXES[email])
+  .filter(Boolean)
 
 let activeAccount = accounts[0] || null
 let activeFolder = 'Inbox'
 let activeMessageId = null
+let currentMessages = []
 
 const accountList = document.getElementById('accountList')
 const mailboxHeading = document.getElementById('mailboxHeading')
@@ -60,31 +54,79 @@ const composeFrom = document.getElementById('composeFrom')
 function accountIcon() {
   return `
     <span class="account-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round">
         <rect x="3" y="5" width="18" height="14" rx="2"></rect>
         <path d="m4 7 8 6 8-6"></path>
       </svg>
-    </span>`
+    </span>
+  `
 }
 
 function emptyMailIcon() {
   return `
     <div class="mail-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <svg viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round">
         <rect x="3" y="5" width="18" height="14" rx="2"></rect>
         <path d="m4 7 8 6 8-6"></path>
       </svg>
-    </div>`
+    </div>
+  `
+}
+
+async function callMailFunction(payload) {
+  const {
+    data: { session }
+  } = await supabase.auth.getSession()
+
+  if (!session?.access_token) {
+    window.location.replace('index.html')
+    throw new Error('Not signed in.')
+  }
+
+  const response = await fetch(
+    `${SUPABASE_URL}/functions/v1/dflandscape-mail`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': SUPABASE_PUBLISHABLE_KEY
+      },
+      body: JSON.stringify(payload)
+    }
+  )
+
+  const result = await response.json()
+
+  if (!response.ok) {
+    throw new Error(
+      result.error || 'Mail request failed.'
+    )
+  }
+
+  return result.data
 }
 
 function renderAccounts() {
   if (!accounts.length) {
-    accountList.innerHTML = '<div class="no-access">No mailbox access.</div>'
+    accountList.innerHTML =
+      '<div class="no-access">No mailbox access.</div>'
     return
   }
 
   accountList.innerHTML = accounts.map(account => `
-    <button class="account-btn ${account.email === activeAccount.email ? 'active' : ''}" data-email="${account.email}">
+    <button
+      class="account-btn ${
+        account.email === activeAccount.email ? 'active' : ''
+      }"
+      data-email="${account.email}"
+    >
       ${accountIcon()}
       <span class="account-copy">
         <strong>${account.name}</strong>
@@ -93,76 +135,189 @@ function renderAccounts() {
     </button>
   `).join('')
 
-  accountList.querySelectorAll('.account-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      activeAccount = accounts.find(a => a.email === btn.dataset.email)
-      activeMessageId = null
-      renderAll()
+  accountList
+    .querySelectorAll('.account-btn')
+    .forEach(btn => {
+      btn.addEventListener('click', async () => {
+        activeAccount = accounts.find(
+          a => a.email === btn.dataset.email
+        )
+
+        activeMessageId = null
+        renderAccounts()
+        await loadMessages()
+        renderReader()
+        renderComposeAccounts()
+      })
     })
-  })
 }
 
-function renderMessages() {
-  if (!activeAccount) {
-    mailboxHeading.textContent = 'No mailbox'
-    mailboxAddress.textContent = loggedInEmail
-    messageList.innerHTML = '<div class="empty-reader" style="height:220px"><strong>No mailbox access</strong></div>'
-    return
-  }
+async function loadMessages() {
+  if (!activeAccount) return
 
   mailboxHeading.textContent = activeFolder
   mailboxAddress.textContent = activeAccount.email
 
-  const query = searchInput.value.trim().toLowerCase()
-  let messages = activeFolder === 'Inbox' ? (demoMessages[activeAccount.email] || []) : []
+  messageList.innerHTML = `
+    <div class="empty-reader" style="height:220px">
+      <strong>Loading mail...</strong>
+    </div>
+  `
+
+  try {
+    currentMessages = await callMailFunction({
+      action: 'list',
+      folder: activeFolder
+    })
+
+    renderMessages()
+  } catch (error) {
+    console.error(error)
+
+    messageList.innerHTML = `
+      <div class="empty-reader" style="height:220px">
+        <strong>Unable to load mail</strong>
+        <span>${escapeHtml(error.message)}</span>
+      </div>
+    `
+  }
+}
+
+function renderMessages() {
+  const query =
+    searchInput.value.trim().toLowerCase()
+
+  let messages = [...currentMessages]
 
   if (query) {
-    messages = messages.filter(m => `${m.sender} ${m.from} ${m.subject} ${m.snippet}`.toLowerCase().includes(query))
+    messages = messages.filter(message =>
+      `
+        ${message.sender}
+        ${message.from}
+        ${message.subject}
+      `
+        .toLowerCase()
+        .includes(query)
+    )
   }
 
   if (!messages.length) {
-    messageList.innerHTML = `<div class="empty-reader" style="height:220px"><strong>No messages</strong><span>${activeFolder === 'Inbox' ? 'No matching preview emails.' : 'This folder will load from Hostinger later.'}</span></div>`
+    messageList.innerHTML = `
+      <div class="empty-reader" style="height:220px">
+        <strong>No messages</strong>
+        <span>This folder is empty.</span>
+      </div>
+    `
     return
   }
 
-  messageList.innerHTML = messages.map(message => `
-    <button class="message-row ${message.unread ? 'unread' : ''} ${message.id === activeMessageId ? 'active' : ''}" data-id="${message.id}">
-      <span class="sender">${escapeHtml(message.sender)}</span>
-      <span class="time">${escapeHtml(message.time)}</span>
-      <span class="subject">${escapeHtml(message.subject)}</span>
-      <span class="snippet">${escapeHtml(message.snippet)}</span>
-    </button>
-  `).join('')
+  messageList.innerHTML = messages
+    .map(message => `
+      <button
+        class="message-row ${
+          String(message.uid) === String(activeMessageId)
+            ? 'active'
+            : ''
+        }"
+        data-id="${message.uid}"
+      >
+        <span class="sender">
+          ${escapeHtml(message.sender || message.from)}
+        </span>
 
-  messageList.querySelectorAll('.message-row').forEach(row => {
-    row.addEventListener('click', () => {
-      activeMessageId = Number(row.dataset.id)
-      renderMessages()
-      renderReader()
+        <span class="time">
+          ${escapeHtml(formatDate(message.date))}
+        </span>
+
+        <span class="subject">
+          ${escapeHtml(message.subject || '(No subject)')}
+        </span>
+
+        <span class="snippet">
+          ${escapeHtml(message.from || '')}
+        </span>
+      </button>
+    `)
+    .join('')
+
+  messageList
+    .querySelectorAll('.message-row')
+    .forEach(row => {
+      row.addEventListener('click', async () => {
+        activeMessageId = row.dataset.id
+        renderMessages()
+        await loadMessage(activeMessageId)
+      })
     })
-  })
+}
+
+async function loadMessage(uid) {
+  readerPanel.innerHTML = `
+    <div class="empty-reader">
+      ${emptyMailIcon()}
+      <strong>Loading email...</strong>
+    </div>
+  `
+
+  try {
+    const message = await callMailFunction({
+      action: 'get',
+      folder: activeFolder,
+      uid
+    })
+
+    readerPanel.innerHTML = `
+      <article class="reader">
+        <div class="eyebrow dark">
+          Message
+        </div>
+
+        <h2>
+          ${escapeHtml(
+            message.subject || '(No subject)'
+          )}
+        </h2>
+
+        <div class="reader-meta">
+          From:
+          ${escapeHtml(message.sender || '')}
+          &lt;${escapeHtml(message.from || '')}&gt;
+          <br>
+
+          To:
+          ${escapeHtml(message.to || activeAccount.email)}
+
+          <br>
+
+          ${escapeHtml(
+            formatFullDate(message.date)
+          )}
+        </div>
+
+        <div class="reader-body">
+          ${escapeHtml(message.body || '')}
+        </div>
+      </article>
+    `
+  } catch (error) {
+    readerPanel.innerHTML = `
+      <div class="empty-reader">
+        ${emptyMailIcon()}
+        <strong>Unable to open email</strong>
+        <span>${escapeHtml(error.message)}</span>
+      </div>
+    `
+  }
 }
 
 function renderReader() {
-  if (!activeAccount) {
-    readerPanel.innerHTML = `<div class="empty-reader">${emptyMailIcon()}<strong>No mailbox available</strong></div>`
-    return
-  }
-
-  const message = (demoMessages[activeAccount.email] || []).find(m => m.id === activeMessageId)
-
-  if (!message) {
-    readerPanel.innerHTML = `<div class="empty-reader">${emptyMailIcon()}<strong>Select an email</strong><span>Choose a message to read it here.</span></div>`
-    return
-  }
-
   readerPanel.innerHTML = `
-    <article class="reader">
-      <div class="eyebrow dark">Message</div>
-      <h2>${escapeHtml(message.subject)}</h2>
-      <div class="reader-meta">From: ${escapeHtml(message.sender)} &lt;${escapeHtml(message.from)}&gt;<br>To: ${escapeHtml(activeAccount.email)}</div>
-      <div class="reader-body">${escapeHtml(message.body)}</div>
-    </article>`
+    <div class="empty-reader">
+      ${emptyMailIcon()}
+      <strong>Select an email</strong>
+      <span>Choose a message to read it here.</span>
+    </div>
+  `
 }
 
 function renderComposeAccounts() {
@@ -171,51 +326,190 @@ function renderComposeAccounts() {
     return
   }
 
-  composeFrom.innerHTML = accounts.map(a => `<option value="${a.email}" ${a.email === activeAccount.email ? 'selected' : ''}>${a.email}</option>`).join('')
-}
-
-function renderAll() {
-  renderAccounts()
-  renderMessages()
-  renderReader()
-  renderComposeAccounts()
+  composeFrom.innerHTML = accounts
+    .map(account => `
+      <option
+        value="${account.email}"
+        ${
+          account.email === activeAccount.email
+            ? 'selected'
+            : ''
+        }
+      >
+        ${account.email}
+      </option>
+    `)
+    .join('')
 }
 
 function escapeHtml(value = '') {
-  return value.replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]))
+  return String(value).replace(
+    /[&<>'"]/g,
+    char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#039;',
+      '"': '&quot;'
+    }[char])
+  )
 }
 
-document.querySelectorAll('.folder').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.folder').forEach(b => b.classList.remove('active'))
-    btn.classList.add('active')
-    activeFolder = btn.dataset.folder
-    activeMessageId = null
-    renderMessages()
-    renderReader()
+function formatDate(value) {
+  if (!value) return ''
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  const now = new Date()
+
+  if (
+    date.toDateString() ===
+    now.toDateString()
+  ) {
+    return date.toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit'
+    })
+  }
+
+  return date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric'
   })
-})
+}
 
-searchInput.addEventListener('input', renderMessages)
-document.getElementById('refreshBtn').addEventListener('click', renderMessages)
-document.getElementById('composeBtn').addEventListener('click', () => {
-  if (!activeAccount) return
-  renderComposeAccounts()
-  composeModal.classList.remove('hidden')
-})
-document.getElementById('closeCompose').addEventListener('click', () => composeModal.classList.add('hidden'))
-composeModal.addEventListener('click', e => {
-  if (e.target === composeModal) composeModal.classList.add('hidden')
-})
-document.getElementById('composeForm').addEventListener('submit', e => {
-  e.preventDefault()
-  document.getElementById('composeStatus').textContent = 'SMTP sending is not connected yet.'
-})
+function formatFullDate(value) {
+  if (!value) return ''
 
-document.querySelector('.signout').addEventListener('click', async (event) => {
-  event.preventDefault()
-  await supabase.auth.signOut()
-  window.location.replace('index.html')
-})
+  const date = new Date(value)
 
-renderAll()
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString()
+}
+
+document
+  .querySelectorAll('.folder')
+  .forEach(btn => {
+    btn.addEventListener('click', async () => {
+      document
+        .querySelectorAll('.folder')
+        .forEach(button =>
+          button.classList.remove('active')
+        )
+
+      btn.classList.add('active')
+
+      activeFolder = btn.dataset.folder
+      activeMessageId = null
+
+      renderReader()
+      await loadMessages()
+    })
+  })
+
+searchInput.addEventListener(
+  'input',
+  renderMessages
+)
+
+document
+  .getElementById('refreshBtn')
+  .addEventListener('click', async () => {
+    await loadMessages()
+  })
+
+document
+  .getElementById('composeBtn')
+  .addEventListener('click', () => {
+    if (!activeAccount) return
+
+    renderComposeAccounts()
+    composeModal.classList.remove('hidden')
+  })
+
+document
+  .getElementById('closeCompose')
+  .addEventListener('click', () => {
+    composeModal.classList.add('hidden')
+  })
+
+composeModal.addEventListener(
+  'click',
+  event => {
+    if (event.target === composeModal) {
+      composeModal.classList.add('hidden')
+    }
+  }
+)
+
+document
+  .getElementById('composeForm')
+  .addEventListener('submit', async event => {
+    event.preventDefault()
+
+    const status =
+      document.getElementById('composeStatus')
+
+    const to =
+      document.getElementById('composeTo')
+        .value
+        .trim()
+
+    const subject =
+      document.getElementById('composeSubject')
+        .value
+        .trim()
+
+    const body =
+      document.getElementById('composeBody')
+        .value
+
+    status.textContent = 'Sending...'
+
+    try {
+      await callMailFunction({
+        action: 'send',
+        to,
+        subject,
+        body
+      })
+
+      status.textContent = 'Sent.'
+
+      event.target.reset()
+
+      setTimeout(() => {
+        composeModal.classList.add('hidden')
+        status.textContent = ''
+      }, 800)
+    } catch (error) {
+      console.error(error)
+      status.textContent =
+        error.message || 'Unable to send.'
+    }
+  })
+
+document
+  .querySelector('.signout')
+  .addEventListener(
+    'click',
+    async event => {
+      event.preventDefault()
+
+      await supabase.auth.signOut()
+
+      window.location.replace('index.html')
+    }
+  )
+
+renderAccounts()
+renderReader()
+renderComposeAccounts()
+await loadMessages()
