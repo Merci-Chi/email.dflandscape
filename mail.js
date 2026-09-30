@@ -1,23 +1,37 @@
-const accounts = [
-  { name: 'Don', email: 'don@dflandscape.com' },
-  { name: 'Office', email: 'office@dflandscape.com' },
-  { name: 'Estimates', email: 'estimates@dflandscape.com' }
-]
+const MAILBOXES = {
+  'don@dflandscape.com': {
+    name: 'Don',
+    email: 'don@dflandscape.com'
+  }
+}
+
+// This determines which actual mailboxes an authenticated login can see.
+// Later, when Office and Estimates are connected, Don can simply be mapped
+// to all three addresses here or loaded from Supabase instead.
+const LOGIN_MAILBOX_ACCESS = {
+  'don@dflandscape.com': ['don@dflandscape.com']
+}
 
 const demoMessages = {
   'don@dflandscape.com': [
-    { id: 1, sender: 'Desert Forest Landscape', from: 'office@dflandscape.com', subject: 'Mailbox ready', snippet: 'This is only a preview message for the mailbox layout.', time: 'Today', unread: true, body: 'This is a preview of the Desert Forest Landscape email portal.\n\nReal inbox messages will appear here once the IMAP backend is connected.' },
-    { id: 2, sender: 'Website Contact', from: 'customer@example.com', subject: 'Landscape inquiry', snippet: 'Example customer inquiry for testing the layout.', time: 'Yesterday', unread: false, body: 'Hello,\n\nI am interested in getting an estimate for landscaping work.\n\nThis is demo content only.' }
-  ],
-  'office@dflandscape.com': [
-    { id: 3, sender: 'Desert Forest Landscape', from: 'don@dflandscape.com', subject: 'Office mailbox', snippet: 'The office inbox will load here.', time: 'Today', unread: true, body: 'The office mailbox is ready for the real mail connection.' }
-  ],
-  'estimates@dflandscape.com': [
-    { id: 4, sender: 'Estimate Request', from: 'lead@example.com', subject: 'Requesting an estimate', snippet: 'A sample estimate request.', time: 'Today', unread: true, body: 'Name: Example Customer\nProject: Backyard cleanup\n\nReal estimate emails will load from your mail server later.' }
+    {
+      id: 1,
+      sender: 'Desert Forest Landscape',
+      from: 'don@dflandscape.com',
+      subject: 'Mailbox ready',
+      snippet: 'Don\'s mailbox is ready for the Hostinger mail connection.',
+      time: 'Today',
+      unread: true,
+      body: 'This is the Desert Forest Landscape email portal preview.\n\nThe next backend step will connect this mailbox to Hostinger IMAP for incoming mail and SMTP for outgoing mail.'
+    }
   ]
 }
 
-let activeAccount = accounts[0]
+const loggedInEmail = (sessionStorage.getItem('dfEmailLogin') || 'don@dflandscape.com').toLowerCase()
+const allowedMailboxEmails = LOGIN_MAILBOX_ACCESS[loggedInEmail] || []
+const accounts = allowedMailboxEmails.map(email => MAILBOXES[email]).filter(Boolean)
+
+let activeAccount = accounts[0] || null
 let activeFolder = 'Inbox'
 let activeMessageId = null
 
@@ -30,11 +44,39 @@ const searchInput = document.getElementById('searchInput')
 const composeModal = document.getElementById('composeModal')
 const composeFrom = document.getElementById('composeFrom')
 
+function accountIcon() {
+  return `
+    <span class="account-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+        <path d="m4 7 8 6 8-6"></path>
+      </svg>
+    </span>`
+}
+
+function emptyMailIcon() {
+  return `
+    <div class="mail-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+        <path d="m4 7 8 6 8-6"></path>
+      </svg>
+    </div>`
+}
+
 function renderAccounts() {
+  if (!accounts.length) {
+    accountList.innerHTML = '<div class="no-access">No mailbox access.</div>'
+    return
+  }
+
   accountList.innerHTML = accounts.map(account => `
     <button class="account-btn ${account.email === activeAccount.email ? 'active' : ''}" data-email="${account.email}">
-      <strong>${account.name}</strong>
-      <span>${account.email}</span>
+      ${accountIcon()}
+      <span class="account-copy">
+        <strong>${account.name}</strong>
+        <span>${account.email}</span>
+      </span>
     </button>
   `).join('')
 
@@ -48,14 +90,25 @@ function renderAccounts() {
 }
 
 function renderMessages() {
+  if (!activeAccount) {
+    mailboxHeading.textContent = 'No mailbox'
+    mailboxAddress.textContent = loggedInEmail
+    messageList.innerHTML = '<div class="empty-reader" style="height:220px"><strong>No mailbox access</strong></div>'
+    return
+  }
+
   mailboxHeading.textContent = activeFolder
   mailboxAddress.textContent = activeAccount.email
+
   const query = searchInput.value.trim().toLowerCase()
   let messages = activeFolder === 'Inbox' ? (demoMessages[activeAccount.email] || []) : []
-  if (query) messages = messages.filter(m => `${m.sender} ${m.from} ${m.subject} ${m.snippet}`.toLowerCase().includes(query))
+
+  if (query) {
+    messages = messages.filter(m => `${m.sender} ${m.from} ${m.subject} ${m.snippet}`.toLowerCase().includes(query))
+  }
 
   if (!messages.length) {
-    messageList.innerHTML = `<div class="empty-reader" style="height:220px"><strong>No messages</strong><span>${activeFolder === 'Inbox' ? 'No matching preview emails.' : 'This folder will connect later.'}</span></div>`
+    messageList.innerHTML = `<div class="empty-reader" style="height:220px"><strong>No messages</strong><span>${activeFolder === 'Inbox' ? 'No matching preview emails.' : 'This folder will load from Hostinger later.'}</span></div>`
     return
   }
 
@@ -78,11 +131,18 @@ function renderMessages() {
 }
 
 function renderReader() {
-  const message = (demoMessages[activeAccount.email] || []).find(m => m.id === activeMessageId)
-  if (!message) {
-    readerPanel.innerHTML = `<div class="empty-reader"><div class="mail-icon">✉</div><strong>Select an email</strong><span>Choose a message to read it here.</span></div>`
+  if (!activeAccount) {
+    readerPanel.innerHTML = `<div class="empty-reader">${emptyMailIcon()}<strong>No mailbox available</strong></div>`
     return
   }
+
+  const message = (demoMessages[activeAccount.email] || []).find(m => m.id === activeMessageId)
+
+  if (!message) {
+    readerPanel.innerHTML = `<div class="empty-reader">${emptyMailIcon()}<strong>Select an email</strong><span>Choose a message to read it here.</span></div>`
+    return
+  }
+
   readerPanel.innerHTML = `
     <article class="reader">
       <div class="eyebrow dark">Message</div>
@@ -93,6 +153,11 @@ function renderReader() {
 }
 
 function renderComposeAccounts() {
+  if (!activeAccount) {
+    composeFrom.innerHTML = ''
+    return
+  }
+
   composeFrom.innerHTML = accounts.map(a => `<option value="${a.email}" ${a.email === activeAccount.email ? 'selected' : ''}>${a.email}</option>`).join('')
 }
 
@@ -103,7 +168,7 @@ function renderAll() {
   renderComposeAccounts()
 }
 
-function escapeHtml(value='') {
+function escapeHtml(value = '') {
   return value.replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]))
 }
 
@@ -120,12 +185,22 @@ document.querySelectorAll('.folder').forEach(btn => {
 
 searchInput.addEventListener('input', renderMessages)
 document.getElementById('refreshBtn').addEventListener('click', renderMessages)
-document.getElementById('composeBtn').addEventListener('click', () => { renderComposeAccounts(); composeModal.classList.remove('hidden') })
+document.getElementById('composeBtn').addEventListener('click', () => {
+  if (!activeAccount) return
+  renderComposeAccounts()
+  composeModal.classList.remove('hidden')
+})
 document.getElementById('closeCompose').addEventListener('click', () => composeModal.classList.add('hidden'))
-composeModal.addEventListener('click', e => { if (e.target === composeModal) composeModal.classList.add('hidden') })
+composeModal.addEventListener('click', e => {
+  if (e.target === composeModal) composeModal.classList.add('hidden')
+})
 document.getElementById('composeForm').addEventListener('submit', e => {
   e.preventDefault()
-  document.getElementById('composeStatus').textContent = 'Mail sending is not connected yet.'
+  document.getElementById('composeStatus').textContent = 'SMTP sending is not connected yet.'
+})
+
+document.querySelector('.signout').addEventListener('click', () => {
+  sessionStorage.removeItem('dfEmailLogin')
 })
 
 renderAll()
