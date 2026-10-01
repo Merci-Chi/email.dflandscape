@@ -66,6 +66,20 @@
         <div id="companyUserList"><div class="admin-loading">Loading users…</div></div>
       </section>
 
+
+      <section class="account-card">
+        <div class="pending-admin-head">
+          <div>
+            <h2>Pending email requests</h2>
+            <p class="account-card-subtext">Edit or delete email addresses that have not been completed yet.</p>
+          </div>
+          <button class="pending-refresh-btn" id="refreshPendingRequestsBtn" type="button">Refresh</button>
+        </div>
+        <div id="pendingEmailRequestList">
+          <div class="pending-request-empty">Loading pending requests…</div>
+        </div>
+      </section>
+
       <section class="account-card add-email-card">
         <div class="add-email-card-top">
           <div>
@@ -114,6 +128,26 @@
         </div>
         <p class="account-message" id="addUserMessage"></p>
         <button class="account-primary-btn request-submit" type="submit">Create user</button>
+      </div>
+    </form>
+  </div>
+
+
+  <div class="email-request-backdrop hidden" id="editPendingRequestModal">
+    <form class="email-request-modal" id="editPendingRequestForm">
+      <div class="email-request-head">
+        <div>
+          <div class="eyebrow dark">Pending request</div>
+          <h2>Edit requested emails</h2>
+        </div>
+        <button type="button" class="email-request-close" id="closeEditPendingRequestBtn" aria-label="Close">×</button>
+      </div>
+      <input type="hidden" id="editPendingRequestId">
+      <div id="editPendingEmailFields" class="requested-email-names"></div>
+      <p class="account-message" id="editPendingRequestMessage" aria-live="polite"></p>
+      <div class="pending-edit-actions">
+        <button class="delete-pending-request-btn" id="deletePendingRequestBtn" type="button">Delete request</button>
+        <button class="account-primary-btn" type="submit">Save changes</button>
       </div>
     </form>
   </div>
