@@ -1,365 +1,146 @@
-// Prevent Safari/iOS double-tap zoom.
-let lastTouchEnd = 0
-
-document.addEventListener('touchend', event => {
-  const now = Date.now()
-  if (now - lastTouchEnd <= 300) event.preventDefault()
-  lastTouchEnd = now
-}, { passive: false })
-
+let lastTouchEnd=0
+document.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTouchEnd<=300)e.preventDefault();lastTouchEnd=n},{passive:false})
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+const SUPABASE_URL='https://wfxuxrvygyzonkflpwoq.supabase.co'
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_e2h4t8AvCobzftt36UrDbw_NJGq8qlJ'
+const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY)
+const {data:{session}}=await supabase.auth.getSession()
+if(!session?.user){location.replace('index.html');throw new Error('Not authenticated')}
+const user=session.user
+const email=(user.email||'').toLowerCase()
+const displayName=user.user_metadata?.display_name||email.split('@')[0]||'Mailbox'
+const {data:accessRow,error:accessError}=await supabase.from('dflandscape_mail_access').select('role,active').eq('user_id',user.id).maybeSingle()
+const canManageEmails=!accessError&&accessRow?.active===true&&String(accessRow?.role||'').toLowerCase()==='admin'
+const manageEmailsLink=document.getElementById('manageEmailsLink')
+if(manageEmailsLink)manageEmailsLink.hidden=!canManageEmails
+if(location.pathname.endsWith('/manage-emails.html')&&!canManageEmails){location.replace('mail.html');throw new Error('No access')}
 
-const SUPABASE_URL = 'https://wfxuxrvygyzonkflpwoq.supabase.co'
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_e2h4t8AvCobzftt36UrDbw_NJGq8qlJ'
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+const accountList=document.getElementById('accountList')
+if(accountList)accountList.innerHTML=`<a class="account-btn active" href="mail.html" style="text-decoration:none"><span class="account-copy"><strong>${esc(displayName)}</strong><span>${esc(email)}</span></span></a>`
 
-const { data: { session } } = await supabase.auth.getSession()
-
-if (!session?.user) {
-  window.location.replace('index.html')
-  throw new Error('Not authenticated')
+let adminState={users:[],mailboxes:[]}
+async function adminApi(action,payload={}){
+  const {data,error}=await supabase.functions.invoke('manage-email-users',{body:{action,...payload}})
+  if(error)throw error
+  if(data?.error)throw new Error(data.error)
+  return data
 }
-
-const user = session.user
-const email = (user.email || '').toLowerCase()
-const displayName = user.user_metadata?.display_name || email.split('@')[0] || 'Mailbox'
-
-const manageEmailsLink = document.getElementById('manageEmailsLink')
-if (manageEmailsLink) manageEmailsLink.hidden = true
-
-const { data: accessRow, error: accessError } = await supabase
-  .from('dflandscape_mail_access')
-  .select('role, active')
-  .eq('user_id', user.id)
-  .maybeSingle()
-
-const canManageEmails =
-  !accessError &&
-  accessRow?.active === true &&
-  String(accessRow?.role || '').toLowerCase() === 'admin'
-
-if (manageEmailsLink) {
-  manageEmailsLink.hidden = !canManageEmails
-}
-
-if (
-  window.location.pathname.endsWith('/manage-emails.html') &&
-  !canManageEmails
-) {
-  window.location.replace('mail.html')
-  throw new Error('No access to Manage Emails')
-}
-
-const accountList = document.getElementById('accountList')
-if (accountList) {
-  accountList.innerHTML = `
-    <a class="account-btn active" href="mail.html" style="text-decoration:none">
-      <span class="account-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="5" width="18" height="14" rx="2"></rect>
-          <path d="m4 7 8 6 8-6"></path>
-        </svg>
-      </span>
-      <span class="account-copy">
-        <strong>${escapeHtml(displayName)}</strong>
-        <span>${escapeHtml(email)}</span>
-      </span>
-    </a>
-  `
-}
-
-const settingsEmail = document.getElementById('settingsEmail')
-const settingsDisplayName = document.getElementById('settingsDisplayName')
-if (settingsEmail) settingsEmail.value = email
-if (settingsDisplayName) settingsDisplayName.value = displayName
-
-const managedEmailList = document.getElementById('managedEmailList')
-if (managedEmailList) {
-  managedEmailList.innerHTML = `
-    <div class="email-account-row">
-      <div class="email-account-copy">
-        <strong>${escapeHtml(displayName)}</strong>
-        <span>${escapeHtml(email)}</span>
-      </div>
-      <span class="email-badge">Primary</span>
-    </div>
-  `
-}
-
-document.getElementById('profileForm')?.addEventListener('submit', async event => {
-  event.preventDefault()
-  const button = event.currentTarget.querySelector('button[type="submit"]')
-  const message = document.getElementById('profileMessage')
-  const newDisplayName = settingsDisplayName.value.trim()
-
-  message.classList.remove('success')
-  message.textContent = ''
-  button.disabled = true
-
-  const { error } = await supabase.auth.updateUser({
-    data: { display_name: newDisplayName }
-  })
-
-  button.disabled = false
-
-  if (error) {
-    message.textContent = error.message || 'Unable to save profile.'
-    return
+async function loadAdminData(){
+  const emailHost=document.getElementById('managedEmailList')
+  const userHost=document.getElementById('companyUserList')
+  if(!emailHost||!userHost)return
+  emailHost.innerHTML='<div class="admin-loading">Loading email accounts…</div>'
+  userHost.innerHTML='<div class="admin-loading">Loading users…</div>'
+  try{
+    adminState=await adminApi('list')
+    renderMailboxes()
+    renderUsers()
+  }catch(e){
+    console.error(e)
+    emailHost.innerHTML=`<div class="admin-empty">${esc(e.message||'Unable to load email accounts.')}</div>`
+    userHost.innerHTML=`<div class="admin-empty">${esc(e.message||'Unable to load users.')}</div>`
   }
-
-  message.classList.add('success')
-  message.textContent = 'Profile updated.'
+}
+function renderMailboxes(){
+  const host=document.getElementById('managedEmailList')
+  const boxes=adminState.mailboxes||[]
+  if(!boxes.length){host.innerHTML='<div class="admin-empty">No @dflandscape.com email accounts yet.</div>';return}
+  host.innerHTML=boxes.map(box=>{
+    const access=(box.users||[]).filter(u=>String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
+    return `<div class="admin-email-row"><div class="admin-email-copy"><strong>${esc(box.email)}</strong><span>${box.pending?'Requested email — not active yet':'Active mailbox'}</span></div><div class="admin-row-right"><span class="admin-badge ${box.pending?'pending':'active'}">${box.pending?'Pending':'Active'}</span>${access.length?access.map(u=>`<span class="access-chip">${esc(u.display_name||u.email)}</span>`).join(''):'<span class="access-chip">No assigned users</span>'}</div></div>`
+  }).join('')
+}
+function renderUsers(){
+  const host=document.getElementById('companyUserList')
+  const users=(adminState.users||[]).filter(u=>String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
+  if(!users.length){host.innerHTML='<div class="admin-empty">No @dflandscape.com users yet.</div>';return}
+  host.innerHTML=users.map(u=>`<div class="admin-user-row"><div class="admin-user-copy"><strong>${esc(u.display_name||u.email)}</strong><span>${esc(u.email)}</span></div><div class="admin-row-right">${(u.mailboxes||[]).length?(u.mailboxes||[]).map(m=>`<span class="access-chip">${esc(m)}</span>`).join(''):'<span class="access-chip">No mailbox access</span>'}<button class="manage-access-btn" data-manage-user="${esc(u.id)}" type="button">Manage access</button></div></div>`).join('')
+  host.querySelectorAll('[data-manage-user]').forEach(btn=>btn.onclick=()=>openAccessModal(btn.dataset.manageUser))
+}
+function mailboxToggleMarkup(box,checked=false){
+  return `<label class="mailbox-toggle"><span class="mailbox-toggle-copy"><strong>${esc(box.email)}</strong><small>${box.pending?'Pending request':'Active mailbox'}</small></span><span class="switch"><input type="checkbox" value="${esc(box.email)}" ${checked?'checked':''}><span></span></span></label>`
+}
+function openAccessModal(userId){
+  const u=(adminState.users||[]).find(x=>x.id===userId);if(!u)return
+  document.getElementById('accessUserId').value=u.id
+  document.getElementById('accessModalTitle').textContent=`Mailbox access — ${u.display_name||u.email}`
+  document.getElementById('accessMailboxChoices').innerHTML=(adminState.mailboxes||[]).map(b=>mailboxToggleMarkup(b,(u.mailboxes||[]).includes(b.email))).join('')
+  document.getElementById('accessMessage').textContent=''
+  document.getElementById('accessModal').classList.remove('hidden')
+}
+document.getElementById('closeAccessModalBtn')?.addEventListener('click',()=>document.getElementById('accessModal').classList.add('hidden'))
+document.getElementById('accessForm')?.addEventListener('submit',async e=>{
+  e.preventDefault()
+  const msg=document.getElementById('accessMessage')
+  const userId=document.getElementById('accessUserId').value
+  const mailboxes=[...document.querySelectorAll('#accessMailboxChoices input:checked')].map(x=>x.value)
+  msg.textContent='Saving…'
+  try{await adminApi('set_permissions',{user_id:userId,mailboxes});document.getElementById('accessModal').classList.add('hidden');await loadAdminData()}catch(err){msg.textContent=err.message||'Unable to save access.'}
 })
-
-document.getElementById('passwordForm')?.addEventListener('submit', async event => {
-  event.preventDefault()
-  const button = event.currentTarget.querySelector('button[type="submit"]')
-  const message = document.getElementById('passwordMessage')
-  const password = document.getElementById('settingsPassword').value
-  const confirmPassword = document.getElementById('settingsPasswordConfirm').value
-
-  message.classList.remove('success')
-  message.textContent = ''
-
-  if (password.length < 8) {
-    message.textContent = 'Password must be at least 8 characters.'
-    return
-  }
-
-  if (password !== confirmPassword) {
-    message.textContent = 'Passwords do not match.'
-    return
-  }
-
-  button.disabled = true
-  const { error } = await supabase.auth.updateUser({ password })
-  button.disabled = false
-
-  if (error) {
-    message.textContent = error.message || 'Unable to update password.'
-    return
-  }
-
-  event.currentTarget.reset()
-  message.classList.add('success')
-  message.textContent = 'Password updated.'
+document.getElementById('openAddUserBtn')?.addEventListener('click',()=>{
+  document.getElementById('addUserForm').reset()
+  document.getElementById('addUserMessage').textContent=''
+  document.getElementById('newUserMailboxChoices').innerHTML=(adminState.mailboxes||[]).map(b=>mailboxToggleMarkup(b,false)).join('')
+  document.getElementById('addUserModal').classList.remove('hidden')
 })
+document.getElementById('closeAddUserBtn')?.addEventListener('click',()=>document.getElementById('addUserModal').classList.add('hidden'))
+document.getElementById('addUserForm')?.addEventListener('submit',async e=>{
+  e.preventDefault()
+  const msg=document.getElementById('addUserMessage')
+  const prefix=document.getElementById('newUserEmailPrefix').value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g,'').replace(/^[._-]+|[._-]+$/g,'')
+  const display_name=document.getElementById('newUserDisplayName').value.trim()
+  const password=document.getElementById('newUserPassword').value
+  const mailboxes=[...document.querySelectorAll('#newUserMailboxChoices input:checked')].map(x=>x.value)
+  if(!prefix){msg.textContent='Enter a valid email name.';return}
+  msg.textContent='Creating user…'
+  try{await adminApi('create_user',{email:`${prefix}@dflandscape.com`,display_name,password,mailboxes});document.getElementById('addUserModal').classList.add('hidden');await loadAdminData()}catch(err){msg.textContent=err.message||'Unable to create user.'}
+})
+document.getElementById('refreshAdminDataBtn')?.addEventListener('click',loadAdminData)
 
-/* Additional email request flow */
-const emailRequestModal = document.getElementById('emailRequestModal')
-const emailRequestForm = document.getElementById('emailRequestForm')
-const emailRequestFields = document.getElementById('emailRequestFields')
-const emailRequestSuccess = document.getElementById('emailRequestSuccess')
-const requestedEmailCount = document.getElementById('requestedEmailCount')
-const requestedEmailNames = document.getElementById('requestedEmailNames')
-const emailRequestTotal = document.getElementById('emailRequestTotal')
-const emailRequestMessage = document.getElementById('emailRequestMessage')
-const addEmailCountPreview = document.getElementById('addEmailCountPreview')
-const emailRequestPaymentBtn = document.getElementById('emailRequestPaymentBtn')
-
-function getBillingCycle() {
-  return document.querySelector('input[name="billingCycle"]:checked')?.value || 'monthly'
-}
-
-function renderRequestedEmailFields() {
-  if (!requestedEmailCount || !requestedEmailNames) return
-
-  const count = Number(requestedEmailCount.value || 1)
-  const existing = [...requestedEmailNames.querySelectorAll('input[data-email-name]')]
-    .map(input => input.value)
-
-  requestedEmailNames.innerHTML = Array.from({ length: count }, (_, index) => `
-    <label class="request-field">
-      Email ${index + 1} name
-      <div class="email-name-row">
-        <input
-          type="text"
-          data-email-name
-          maxlength="64"
-          placeholder="example"
-          value="${escapeHtml(existing[index] || '')}"
-          required
-        >
-        <span>@dflandscape.com</span>
-      </div>
-    </label>
-  `).join('')
-
-  if (addEmailCountPreview) {
-    addEmailCountPreview.textContent = `${count} ${count === 1 ? 'email' : 'emails'}`
-  }
-
+const emailRequestModal=document.getElementById('emailRequestModal')
+const emailRequestForm=document.getElementById('emailRequestForm')
+const emailRequestFields=document.getElementById('emailRequestFields')
+const emailRequestSuccess=document.getElementById('emailRequestSuccess')
+const requestedEmailCount=document.getElementById('requestedEmailCount')
+const requestedEmailNames=document.getElementById('requestedEmailNames')
+const emailRequestTotal=document.getElementById('emailRequestTotal')
+const emailRequestMessage=document.getElementById('emailRequestMessage')
+const addEmailCountPreview=document.getElementById('addEmailCountPreview')
+const emailRequestPaymentBtn=document.getElementById('emailRequestPaymentBtn')
+function getBillingCycle(){return document.querySelector('input[name="billingCycle"]:checked')?.value||'monthly'}
+function renderRequestedEmailFields(){
+  const count=Number(requestedEmailCount?.value||1)
+  const existing=[...(requestedEmailNames?.querySelectorAll('input[data-email-name]')||[])].map(i=>i.value)
+  requestedEmailNames.innerHTML=Array.from({length:count},(_,i)=>`<label class="request-field">Email ${i+1} name<div class="email-name-row"><input type="text" data-email-name maxlength="64" placeholder="example" value="${esc(existing[i]||'')}" required><span>@dflandscape.com</span></div></label>`).join('')
+  if(addEmailCountPreview)addEmailCountPreview.textContent=`${count} ${count===1?'email':'emails'}`
   updateRequestTotal()
 }
-
-function updateRequestTotal() {
-  if (!requestedEmailCount || !emailRequestTotal) return
-  const count = Number(requestedEmailCount.value || 1)
-  const cycle = getBillingCycle()
-
-  if (cycle === 'yearly') {
-    emailRequestTotal.textContent = `$${count * 24}/year`
-  } else {
-    emailRequestTotal.textContent = `$${count * 2}/month`
-  }
-}
-
-function resetEmailRequestModal() {
-  if (!emailRequestForm) return
-  emailRequestForm.reset()
-  if (requestedEmailCount) requestedEmailCount.value = '1'
-  emailRequestMessage.textContent = ''
-  emailRequestMessage.classList.remove('success')
-  emailRequestFields?.classList.remove('hidden')
-  emailRequestSuccess?.classList.add('hidden')
-
-  if (emailRequestPaymentBtn) {
-    emailRequestPaymentBtn.hidden = true
-    emailRequestPaymentBtn.href = '#'
-    emailRequestPaymentBtn.textContent = 'Continue to payment'
-  }
-
-  renderRequestedEmailFields()
-}
-
-function openEmailRequestModal() {
-  resetEmailRequestModal()
-  emailRequestModal?.classList.remove('hidden')
-}
-
-function closeEmailRequestModal() {
-  emailRequestModal?.classList.add('hidden')
-}
-
-document.getElementById('openEmailRequestBtn')?.addEventListener('click', openEmailRequestModal)
-document.getElementById('closeEmailRequestBtn')?.addEventListener('click', closeEmailRequestModal)
-document.getElementById('closeRequestSuccessBtn')?.addEventListener('click', closeEmailRequestModal)
-
-emailRequestModal?.addEventListener('click', event => {
-  if (event.target === emailRequestModal) closeEmailRequestModal()
+function updateRequestTotal(){const c=Number(requestedEmailCount?.value||1);emailRequestTotal.textContent=getBillingCycle()==='yearly'?`$${c*24}/year`:`$${c*2}/month`}
+function resetRequest(){emailRequestForm?.reset();if(requestedEmailCount)requestedEmailCount.value='1';emailRequestMessage.textContent='';emailRequestFields?.classList.remove('hidden');emailRequestSuccess?.classList.add('hidden');if(emailRequestPaymentBtn){emailRequestPaymentBtn.hidden=true;emailRequestPaymentBtn.href='#'}renderRequestedEmailFields()}
+document.getElementById('openEmailRequestBtn')?.addEventListener('click',()=>{resetRequest();emailRequestModal.classList.remove('hidden')})
+document.getElementById('closeEmailRequestBtn')?.addEventListener('click',()=>emailRequestModal.classList.add('hidden'))
+document.getElementById('closeRequestSuccessBtn')?.addEventListener('click',()=>{emailRequestModal.classList.add('hidden');loadAdminData()})
+requestedEmailCount?.addEventListener('change',renderRequestedEmailFields)
+document.querySelectorAll('input[name="billingCycle"]').forEach(i=>i.addEventListener('change',updateRequestTotal))
+emailRequestForm?.addEventListener('submit',async e=>{
+  e.preventDefault()
+  const btn=e.currentTarget.querySelector('button[type="submit"]')
+  const quantity=Number(requestedEmailCount.value||1),billingCycle=getBillingCycle()
+  const names=[...requestedEmailNames.querySelectorAll('input[data-email-name]')].map(i=>i.value.trim())
+  const usernames=names.map(n=>n.toLowerCase().replace(/[^a-z0-9._-]+/g,'').replace(/^[._-]+|[._-]+$/g,''))
+  if(names.some(n=>!n)||usernames.some(n=>!n)){emailRequestMessage.textContent='Enter a valid name for every email.';return}
+  const requestedEmails=usernames.map((username,i)=>({name:names[i],username,email:`${username}@dflandscape.com`}))
+  btn.disabled=true;emailRequestMessage.textContent='Submitting request…'
+  const {data:reqRow,error:reqErr}=await supabase.from('dflandscape_email_requests').insert({requested_by:user.id,requested_by_email:email,quantity,billing_cycle:billingCycle,price_per_email:billingCycle==='yearly'?24:2,requested_emails:requestedEmails,status:'pending'}).select('id').single()
+  if(reqErr){btn.disabled=false;emailRequestMessage.textContent=reqErr.message||'Unable to submit request.';return}
+  emailRequestMessage.textContent='Creating secure payment link…'
+  const {data:pay,error:payErr}=await supabase.functions.invoke('create-email-payment-link',{body:{request_id:reqRow.id}})
+  btn.disabled=false
+  if(payErr||!pay?.payment_link){emailRequestMessage.textContent='Request saved, but the payment link could not be created.';await loadAdminData();return}
+  emailRequestPaymentBtn.href=pay.payment_link;emailRequestPaymentBtn.hidden=false;emailRequestPaymentBtn.textContent=billingCycle==='monthly'?`Continue to payment — $${quantity*2}/month`:`Continue to payment — $${quantity*24}/year`
+  emailRequestMessage.textContent='';emailRequestFields.classList.add('hidden');emailRequestSuccess.classList.remove('hidden');await loadAdminData()
 })
-
-requestedEmailCount?.addEventListener('change', renderRequestedEmailFields)
-
-document.querySelectorAll('input[name="billingCycle"]').forEach(input => {
-  input.addEventListener('change', updateRequestTotal)
-})
-
-emailRequestForm?.addEventListener('submit', async event => {
-  event.preventDefault()
-
-  const submitButton = event.currentTarget.querySelector('button[type="submit"]')
-  const quantity = Number(requestedEmailCount?.value || 1)
-  const billingCycle = getBillingCycle()
-  const names = [...requestedEmailNames.querySelectorAll('input[data-email-name]')]
-    .map(input => input.value.trim())
-  const usernames = names.map(name =>
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, '')
-      .replace(/^[._-]+|[._-]+$/g, '')
-  )
-
-  if (names.some(name => !name)) {
-    emailRequestMessage.textContent = 'Enter a name for every email.'
-    return
-  }
-
-  if (usernames.some(name => !name)) {
-    emailRequestMessage.textContent = 'Each email needs at least one valid letter or number.'
-    return
-  }
-
-  if (new Set(usernames).size !== usernames.length) {
-    emailRequestMessage.textContent = 'Each requested email must have a different name.'
-    return
-  }
-
-  const requestedEmails = usernames.map((username, index) => ({
-    name: names[index],
-    username,
-    email: `${username}@dflandscape.com`
-  }))
-
-  emailRequestMessage.textContent = 'Submitting request...'
-  submitButton.disabled = true
-
-  const {
-    data: request,
-    error: requestError
-  } = await supabase
-    .from('dflandscape_email_requests')
-    .insert({
-      requested_by: user.id,
-      requested_by_email: email,
-      quantity,
-      billing_cycle: billingCycle,
-      price_per_email: billingCycle === 'yearly' ? 24 : 2,
-      requested_emails: requestedEmails,
-      status: 'pending'
-    })
-    .select('id')
-    .single()
-
-  if (requestError) {
-    console.error(requestError)
-    submitButton.disabled = false
-    emailRequestMessage.textContent =
-      requestError.message || 'Unable to submit request.'
-    return
-  }
-
-  emailRequestMessage.textContent = 'Creating secure payment link...'
-
-  const {
-    data: paymentData,
-    error: paymentError
-  } = await supabase.functions.invoke(
-    'create-email-payment-link',
-    {
-      body: {
-        request_id: request.id
-      }
-    }
-  )
-
-  submitButton.disabled = false
-
-  if (paymentError || !paymentData?.payment_link) {
-    console.error(paymentError)
-    emailRequestMessage.textContent =
-      'Request saved, but the payment link could not be created.'
-    return
-  }
-
-  if (emailRequestPaymentBtn) {
-    emailRequestPaymentBtn.href = paymentData.payment_link
-    emailRequestPaymentBtn.hidden = false
-    emailRequestPaymentBtn.textContent =
-      billingCycle === 'monthly'
-        ? `Continue to payment — ${quantity * 2}/month`
-        : `Continue to payment — ${quantity * 24}/year`
-  }
-
-  emailRequestMessage.textContent = ''
-  emailRequestFields?.classList.add('hidden')
-  emailRequestSuccess?.classList.remove('hidden')
-})
-
-if (requestedEmailCount) renderRequestedEmailFields()
-
-document.querySelector('.signout')?.addEventListener('click', async event => {
-  event.preventDefault()
-  await supabase.auth.signOut()
-  window.location.replace('index.html')
-})
-
-function escapeHtml(value = '') {
-  return String(value).replace(/[&<>'"]/g, char => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    "'": '&#039;',
-    '"': '&quot;'
-  }[char]))
-}
+document.querySelector('.signout')?.addEventListener('click',async e=>{e.preventDefault();await supabase.auth.signOut();location.replace('index.html')})
+function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]))}
+if(requestedEmailCount)renderRequestedEmailFields()
+await loadAdminData()
