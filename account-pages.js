@@ -155,6 +155,7 @@ const requestedEmailNames = document.getElementById('requestedEmailNames')
 const emailRequestTotal = document.getElementById('emailRequestTotal')
 const emailRequestMessage = document.getElementById('emailRequestMessage')
 const addEmailCountPreview = document.getElementById('addEmailCountPreview')
+const emailRequestPaymentBtn = document.getElementById('emailRequestPaymentBtn')
 
 function getBillingCycle() {
   return document.querySelector('input[name="billingCycle"]:checked')?.value || 'monthly'
@@ -211,6 +212,13 @@ function resetEmailRequestModal() {
   emailRequestMessage.classList.remove('success')
   emailRequestFields?.classList.remove('hidden')
   emailRequestSuccess?.classList.add('hidden')
+
+  if (emailRequestPaymentBtn) {
+    emailRequestPaymentBtn.hidden = true
+    emailRequestPaymentBtn.href = '#'
+    emailRequestPaymentBtn.textContent = 'Continue to payment'
+  }
+
   renderRequestedEmailFields()
 }
 
@@ -276,7 +284,10 @@ emailRequestForm?.addEventListener('submit', async event => {
   emailRequestMessage.textContent = 'Submitting request...'
   submitButton.disabled = true
 
-  const { error } = await supabase
+  const {
+    data: request,
+    error: requestError
+  } = await supabase
     .from('dflandscape_email_requests')
     .insert({
       requested_by: user.id,
@@ -287,13 +298,47 @@ emailRequestForm?.addEventListener('submit', async event => {
       requested_emails: requestedEmails,
       status: 'pending'
     })
+    .select('id')
+    .single()
+
+  if (requestError) {
+    console.error(requestError)
+    submitButton.disabled = false
+    emailRequestMessage.textContent =
+      requestError.message || 'Unable to submit request.'
+    return
+  }
+
+  emailRequestMessage.textContent = 'Creating secure payment link...'
+
+  const {
+    data: paymentData,
+    error: paymentError
+  } = await supabase.functions.invoke(
+    'create-email-payment-link',
+    {
+      body: {
+        request_id: request.id
+      }
+    }
+  )
 
   submitButton.disabled = false
 
-  if (error) {
-    console.error(error)
-    emailRequestMessage.textContent = error.message || 'Unable to submit request.'
+  if (paymentError || !paymentData?.payment_link) {
+    console.error(paymentError)
+    emailRequestMessage.textContent =
+      'Request saved, but the payment link could not be created.'
     return
+  }
+
+  if (emailRequestPaymentBtn) {
+    emailRequestPaymentBtn.href = paymentData.payment_link
+    emailRequestPaymentBtn.hidden = false
+    emailRequestPaymentBtn.textContent =
+      billingCycle === 'monthly'
+        ? `Continue to payment — ${quantity * 2}/month`
+        : `Continue to payment — ${quantity * 24}/year`
   }
 
   emailRequestMessage.textContent = ''
