@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0f2617">
   <title>Manage Emails | Desert Forest Landscape Email</title>
   <link rel="stylesheet" href="styles.css?v=admin-hidden-fix-1">
+  <link rel="stylesheet" href="manage-email-requests.css?v=1">
 </head>
 <body class="account-page">
   <header class="topbar">
@@ -26,6 +27,7 @@
       <a class="signout" href="index.html">Sign out</a>
     </div>
   </header>
+
   <main class="account-shell">
     <aside class="sidebar">
       <a class="compose" href="mail.html" style="text-decoration:none">
@@ -107,11 +109,12 @@
         </a>
       </nav>
     </aside>
+
     <div class="account-page-main">
       <div class="account-page-head">
         <div class="eyebrow dark">Account</div>
         <h1>Manage Emails</h1>
-        <p>See the mailbox connected to the account you are currently signed in with.</p>
+        <p>See and request email accounts for Desert Forest Landscape.</p>
       </div>
 
       <section class="account-card">
@@ -120,9 +123,87 @@
         <div id="managedEmailList"></div>
         <p class="account-help">The email shown here comes directly from the authenticated Supabase account instead of a hardcoded address.</p>
       </section>
+
+      <section class="account-card add-email-card">
+        <div class="add-email-card-top">
+          <div>
+            <h2>Add more emails</h2>
+            <p class="account-card-subtext">Request additional <strong>@dflandscape.com</strong> email accounts.</p>
+          </div>
+          <div class="email-price">
+            <strong>$2</strong><span>/month per email</span>
+            <small>or $24/year per email</small>
+          </div>
+        </div>
+
+        <div class="add-email-summary">
+          <span>How many do you need?</span>
+          <strong id="addEmailCountPreview">1 email</strong>
+        </div>
+
+        <button class="account-primary-btn" id="openEmailRequestBtn" type="button">Request more emails</button>
+      </section>
     </div>
   </main>
 
-  <script type="module" src="account-pages.js?v=supabase-admin-role-1"></script>
+  <div class="email-request-backdrop hidden" id="emailRequestModal">
+    <form class="email-request-modal" id="emailRequestForm">
+      <div class="email-request-head">
+        <div>
+          <div class="eyebrow dark">Email request</div>
+          <h2>Add more emails</h2>
+        </div>
+        <button type="button" class="email-request-close" id="closeEmailRequestBtn" aria-label="Close">×</button>
+      </div>
+
+      <div class="request-step" id="emailRequestFields">
+        <label class="request-field">
+          Number of emails
+          <select id="requestedEmailCount" required>
+            <option value="1">1 email</option>
+            <option value="2">2 emails</option>
+            <option value="3">3 emails</option>
+            <option value="4">4 emails</option>
+            <option value="5">5 emails</option>
+            <option value="6">6 emails</option>
+            <option value="7">7 emails</option>
+            <option value="8">8 emails</option>
+            <option value="9">9 emails</option>
+            <option value="10">10 emails</option>
+          </select>
+        </label>
+
+        <div class="billing-choice">
+          <label>
+            <input type="radio" name="billingCycle" value="monthly" checked>
+            <span><strong>Monthly</strong><small>$2/month per email</small></span>
+          </label>
+          <label>
+            <input type="radio" name="billingCycle" value="yearly">
+            <span><strong>Yearly</strong><small>$24/year per email</small></span>
+          </label>
+        </div>
+
+        <div id="requestedEmailNames" class="requested-email-names"></div>
+
+        <div class="request-total">
+          <span>Total</span>
+          <strong id="emailRequestTotal">$2/month</strong>
+        </div>
+
+        <p class="account-message" id="emailRequestMessage" aria-live="polite"></p>
+        <button class="account-primary-btn request-submit" type="submit">Submit request</button>
+      </div>
+
+      <div class="request-success hidden" id="emailRequestSuccess">
+        <div class="request-checkmark" aria-hidden="true">✓</div>
+        <h2>Request submitted</h2>
+        <p>Your request for additional email accounts has been submitted.</p>
+        <button class="account-primary-btn" id="closeRequestSuccessBtn" type="button">Done</button>
+      </div>
+    </form>
+  </div>
+
+  <script type="module" src="account-pages.js?v=email-requests-1"></script>
 </body>
 </html>

@@ -3,11 +3,7 @@ let lastTouchEnd = 0
 
 document.addEventListener('touchend', event => {
   const now = Date.now()
-
-  if (now - lastTouchEnd <= 300) {
-    event.preventDefault()
-  }
-
+  if (now - lastTouchEnd <= 300) event.preventDefault()
   lastTouchEnd = now
 }, { passive: false })
 
@@ -148,6 +144,164 @@ document.getElementById('passwordForm')?.addEventListener('submit', async event 
   message.classList.add('success')
   message.textContent = 'Password updated.'
 })
+
+/* Additional email request flow */
+const emailRequestModal = document.getElementById('emailRequestModal')
+const emailRequestForm = document.getElementById('emailRequestForm')
+const emailRequestFields = document.getElementById('emailRequestFields')
+const emailRequestSuccess = document.getElementById('emailRequestSuccess')
+const requestedEmailCount = document.getElementById('requestedEmailCount')
+const requestedEmailNames = document.getElementById('requestedEmailNames')
+const emailRequestTotal = document.getElementById('emailRequestTotal')
+const emailRequestMessage = document.getElementById('emailRequestMessage')
+const addEmailCountPreview = document.getElementById('addEmailCountPreview')
+
+function getBillingCycle() {
+  return document.querySelector('input[name="billingCycle"]:checked')?.value || 'monthly'
+}
+
+function renderRequestedEmailFields() {
+  if (!requestedEmailCount || !requestedEmailNames) return
+
+  const count = Number(requestedEmailCount.value || 1)
+  const existing = [...requestedEmailNames.querySelectorAll('input[data-email-name]')]
+    .map(input => input.value)
+
+  requestedEmailNames.innerHTML = Array.from({ length: count }, (_, index) => `
+    <label class="request-field">
+      Email ${index + 1} name
+      <div class="email-name-row">
+        <input
+          type="text"
+          data-email-name
+          maxlength="64"
+          placeholder="example"
+          value="${escapeHtml(existing[index] || '')}"
+          required
+        >
+        <span>@dflandscape.com</span>
+      </div>
+    </label>
+  `).join('')
+
+  if (addEmailCountPreview) {
+    addEmailCountPreview.textContent = `${count} ${count === 1 ? 'email' : 'emails'}`
+  }
+
+  updateRequestTotal()
+}
+
+function updateRequestTotal() {
+  if (!requestedEmailCount || !emailRequestTotal) return
+  const count = Number(requestedEmailCount.value || 1)
+  const cycle = getBillingCycle()
+
+  if (cycle === 'yearly') {
+    emailRequestTotal.textContent = `$${count * 24}/year`
+  } else {
+    emailRequestTotal.textContent = `$${count * 2}/month`
+  }
+}
+
+function resetEmailRequestModal() {
+  if (!emailRequestForm) return
+  emailRequestForm.reset()
+  if (requestedEmailCount) requestedEmailCount.value = '1'
+  emailRequestMessage.textContent = ''
+  emailRequestMessage.classList.remove('success')
+  emailRequestFields?.classList.remove('hidden')
+  emailRequestSuccess?.classList.add('hidden')
+  renderRequestedEmailFields()
+}
+
+function openEmailRequestModal() {
+  resetEmailRequestModal()
+  emailRequestModal?.classList.remove('hidden')
+}
+
+function closeEmailRequestModal() {
+  emailRequestModal?.classList.add('hidden')
+}
+
+document.getElementById('openEmailRequestBtn')?.addEventListener('click', openEmailRequestModal)
+document.getElementById('closeEmailRequestBtn')?.addEventListener('click', closeEmailRequestModal)
+document.getElementById('closeRequestSuccessBtn')?.addEventListener('click', closeEmailRequestModal)
+
+emailRequestModal?.addEventListener('click', event => {
+  if (event.target === emailRequestModal) closeEmailRequestModal()
+})
+
+requestedEmailCount?.addEventListener('change', renderRequestedEmailFields)
+
+document.querySelectorAll('input[name="billingCycle"]').forEach(input => {
+  input.addEventListener('change', updateRequestTotal)
+})
+
+emailRequestForm?.addEventListener('submit', async event => {
+  event.preventDefault()
+
+  const submitButton = event.currentTarget.querySelector('button[type="submit"]')
+  const quantity = Number(requestedEmailCount?.value || 1)
+  const billingCycle = getBillingCycle()
+  const names = [...requestedEmailNames.querySelectorAll('input[data-email-name]')]
+    .map(input => input.value.trim())
+  const usernames = names.map(name =>
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '')
+      .replace(/^[._-]+|[._-]+$/g, '')
+  )
+
+  if (names.some(name => !name)) {
+    emailRequestMessage.textContent = 'Enter a name for every email.'
+    return
+  }
+
+  if (usernames.some(name => !name)) {
+    emailRequestMessage.textContent = 'Each email needs at least one valid letter or number.'
+    return
+  }
+
+  if (new Set(usernames).size !== usernames.length) {
+    emailRequestMessage.textContent = 'Each requested email must have a different name.'
+    return
+  }
+
+  const requestedEmails = usernames.map((username, index) => ({
+    name: names[index],
+    username,
+    email: `${username}@dflandscape.com`
+  }))
+
+  emailRequestMessage.textContent = 'Submitting request...'
+  submitButton.disabled = true
+
+  const { error } = await supabase
+    .from('dflandscape_email_requests')
+    .insert({
+      requested_by: user.id,
+      requested_by_email: email,
+      quantity,
+      billing_cycle: billingCycle,
+      price_per_email: billingCycle === 'yearly' ? 24 : 2,
+      requested_emails: requestedEmails,
+      status: 'pending'
+    })
+
+  submitButton.disabled = false
+
+  if (error) {
+    console.error(error)
+    emailRequestMessage.textContent = error.message || 'Unable to submit request.'
+    return
+  }
+
+  emailRequestMessage.textContent = ''
+  emailRequestFields?.classList.add('hidden')
+  emailRequestSuccess?.classList.remove('hidden')
+})
+
+if (requestedEmailCount) renderRequestedEmailFields()
 
 document.querySelector('.signout')?.addEventListener('click', async event => {
   event.preventDefault()
