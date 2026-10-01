@@ -140,6 +140,170 @@ emailRequestForm?.addEventListener('submit',async e=>{
   emailRequestPaymentBtn.href=pay.payment_link;emailRequestPaymentBtn.hidden=false;emailRequestPaymentBtn.textContent=billingCycle==='monthly'?`Continue to payment — $${quantity*2}/month`:`Continue to payment — $${quantity*24}/year`
   emailRequestMessage.textContent='';emailRequestFields.classList.add('hidden');emailRequestSuccess.classList.remove('hidden');await loadAdminData()
 })
+
+const pendingEmailRequestList=document.getElementById('pendingEmailRequestList')
+const editPendingRequestModal=document.getElementById('editPendingRequestModal')
+const editPendingRequestForm=document.getElementById('editPendingRequestForm')
+const editPendingRequestId=document.getElementById('editPendingRequestId')
+const editPendingEmailFields=document.getElementById('editPendingEmailFields')
+const editPendingRequestMessage=document.getElementById('editPendingRequestMessage')
+let pendingEmailRequests=[]
+
+async function loadPendingEmailRequests(){
+  if(!pendingEmailRequestList||!canManageEmails)return
+  pendingEmailRequestList.innerHTML='<div class="pending-request-empty">Loading pending requests…</div>'
+  const {data,error}=await supabase.from('dflandscape_email_requests')
+    .select('id,quantity,billing_cycle,requested_emails,requested_by_email,payment_status,status,created_at')
+    .eq('status','pending')
+    .order('created_at',{ascending:false})
+
+  if(error){
+    console.error(error)
+    pendingEmailRequestList.innerHTML='<div class="pending-request-empty">Unable to load pending requests.</div>'
+    return
+  }
+
+  pendingEmailRequests=Array.isArray(data)?data:[]
+  if(!pendingEmailRequests.length){
+    pendingEmailRequestList.innerHTML='<div class="pending-request-empty">No pending email requests.</div>'
+    return
+  }
+
+  pendingEmailRequestList.innerHTML=pendingEmailRequests.map(r=>{
+    const emails=Array.isArray(r.requested_emails)?r.requested_emails:[]
+    const count=Number(r.quantity||emails.length||0)
+    return `
+      <div class="pending-request-card">
+        <div class="pending-request-top">
+          <div>
+            <strong>${count} email${count===1?'':'s'}</strong>
+            <span>${esc(r.billing_cycle||'monthly')} · ${esc(r.payment_status||'unpaid')}</span>
+          </div>
+          <button class="pending-edit-btn" data-pending-edit="${esc(r.id)}" type="button">Edit</button>
+        </div>
+        <div class="pending-address-list">
+          ${emails.map(item=>`<span>${esc(item?.email||'')}</span>`).join('')}
+        </div>
+        <div class="pending-request-meta">Requested by ${esc(r.requested_by_email||'Unknown')}</div>
+      </div>
+    `
+  }).join('')
+
+  pendingEmailRequestList.querySelectorAll('[data-pending-edit]').forEach(btn=>{
+    btn.addEventListener('click',()=>openPendingEmailEditor(btn.dataset.pendingEdit))
+  })
+
+  const params=new URLSearchParams(location.search)
+  const requestId=params.get('request')
+  if(requestId&&pendingEmailRequests.some(r=>r.id===requestId)){
+    openPendingEmailEditor(requestId)
+  }
+}
+
+function openPendingEmailEditor(requestId){
+  const request=pendingEmailRequests.find(r=>r.id===requestId)
+  if(!request||!editPendingRequestModal)return
+
+  editPendingRequestId.value=request.id
+  editPendingRequestMessage.textContent=''
+
+  const emails=Array.isArray(request.requested_emails)?request.requested_emails:[]
+  editPendingEmailFields.innerHTML=emails.map((item,index)=>{
+    const username=String(item?.email||'').split('@')[0]||String(item?.username||'')
+    return `
+      <label class="request-field">
+        Email ${index+1}
+        <div class="email-name-row">
+          <input type="text" data-pending-email-name maxlength="64" value="${esc(username)}" required>
+          <span>@dflandscape.com</span>
+        </div>
+      </label>
+    `
+  }).join('')
+
+  editPendingRequestModal.classList.remove('hidden')
+}
+
+function closePendingEmailEditor(){
+  editPendingRequestModal?.classList.add('hidden')
+  const url=new URL(location.href)
+  url.searchParams.delete('request')
+  url.searchParams.delete('action')
+  history.replaceState(null,'',url.pathname+url.search+url.hash)
+}
+
+async function cancelPendingEmailRequest(){
+  const requestId=editPendingRequestId?.value
+  if(!requestId)return
+  if(!confirm('Delete this pending email request?'))return
+
+  const {error}=await supabase.from('dflandscape_email_requests')
+    .update({status:'cancelled',updated_at:new Date().toISOString()})
+    .eq('id',requestId)
+    .eq('status','pending')
+
+  if(error){
+    editPendingRequestMessage.textContent=error.message||'Unable to delete request.'
+    return
+  }
+
+  closePendingEmailEditor()
+  await Promise.all([loadPendingEmailRequests(),loadAdminData()])
+}
+
+document.getElementById('refreshPendingRequestsBtn')?.addEventListener('click',loadPendingEmailRequests)
+document.getElementById('closeEditPendingRequestBtn')?.addEventListener('click',closePendingEmailEditor)
+document.getElementById('deletePendingRequestBtn')?.addEventListener('click',cancelPendingEmailRequest)
+editPendingRequestModal?.addEventListener('click',e=>{if(e.target===editPendingRequestModal)closePendingEmailEditor()})
+
+editPendingRequestForm?.addEventListener('submit',async e=>{
+  e.preventDefault()
+  const requestId=editPendingRequestId.value
+  const request=pendingEmailRequests.find(r=>r.id===requestId)
+  if(!request)return
+
+  const usernames=[...editPendingEmailFields.querySelectorAll('[data-pending-email-name]')].map(input=>
+    input.value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g,'').replace(/^[._-]+|[._-]+$/g,'')
+  )
+
+  if(usernames.some(v=>!v)){
+    editPendingRequestMessage.textContent='Every email needs a valid name.'
+    return
+  }
+  if(new Set(usernames).size!==usernames.length){
+    editPendingRequestMessage.textContent='Each requested email must be different.'
+    return
+  }
+
+  const old=Array.isArray(request.requested_emails)?request.requested_emails:[]
+  const requested_emails=usernames.map((username,index)=>({
+    name:old[index]?.name||username,
+    username,
+    email:`${username}@dflandscape.com`
+  }))
+
+  const saveButton=e.currentTarget.querySelector('button[type="submit"]')
+  saveButton.disabled=true
+  editPendingRequestMessage.textContent='Saving…'
+
+  const {error}=await supabase.from('dflandscape_email_requests')
+    .update({requested_emails,updated_at:new Date().toISOString()})
+    .eq('id',requestId)
+    .eq('status','pending')
+
+  saveButton.disabled=false
+
+  if(error){
+    editPendingRequestMessage.textContent=error.message||'Unable to save changes.'
+    return
+  }
+
+  closePendingEmailEditor()
+  await Promise.all([loadPendingEmailRequests(),loadAdminData()])
+})
+
+await loadPendingEmailRequests()
+
 document.querySelector('.signout')?.addEventListener('click',async e=>{e.preventDefault();await supabase.auth.signOut();location.replace('index.html')})
 function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]))}
 if(requestedEmailCount)renderRequestedEmailFields()
