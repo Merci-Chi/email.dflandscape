@@ -26,3 +26,22 @@
 .request-field-label{font-size:13px;font-weight:800;color:#394239;margin-bottom:7px}
 .email-request-backdrop.hidden,.request-success.hidden{display:none!important}
 @media(max-width:650px){.add-email-card-top,.admin-section-head{flex-direction:column;gap:10px}.email-price{text-align:left;align-items:flex-start}.admin-user-row,.admin-email-row{align-items:flex-start;flex-direction:column}.admin-row-right{justify-content:flex-start}.billing-choice{grid-template-columns:1fr}.email-request-backdrop{padding:10px;place-items:start center}.email-request-modal{max-height:calc(100dvh - 20px);padding:18px 14px;border-radius:12px}}
+
+.pending-admin-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.pending-refresh-btn,.pending-edit-btn{border:1px solid #cdd7cd;background:#fff;color:#28482f;border-radius:9px;min-height:38px;padding:0 12px;font-weight:800;cursor:pointer}
+.pending-request-empty{padding:18px;border:1px dashed #d8dfd8;border-radius:10px;color:#778177;text-align:center}
+.pending-request-card{padding:14px 0;border-top:1px solid #e8ede8}
+.pending-request-card:first-child{border-top:0}
+.pending-request-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.pending-request-top strong{display:block;color:#1d3423}
+.pending-request-top span{display:block;margin-top:3px;color:#7b857b;font-size:12px;text-transform:capitalize}
+.pending-address-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.pending-address-list span{padding:5px 8px;border-radius:999px;background:#eef4ef;color:#365840;font-size:11px;font-weight:750}
+.pending-request-meta{margin-top:9px;color:#879087;font-size:11px}
+.pending-edit-actions{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+.pending-edit-actions .account-primary-btn{margin:0}
+.delete-pending-request-btn{border:1px solid #e2baba;background:#fff5f5;color:#a73a3a;border-radius:9px;padding:0 14px;min-height:42px;font-weight:850;cursor:pointer}
+@media(max-width:650px){
+  .pending-admin-head,.pending-request-top,.pending-edit-actions{align-items:stretch;flex-direction:column}
+  .pending-refresh-btn,.pending-edit-btn,.delete-pending-request-btn{width:100%}
+}
