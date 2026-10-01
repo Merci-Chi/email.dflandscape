@@ -45,3 +45,9 @@
   .email-name-row{grid-template-columns:minmax(0,1fr) auto}
   .email-name-row span{padding:0 9px;font-size:11px}
 }
+
+/* Modal visibility fix */
+.email-request-backdrop.hidden,
+.request-success.hidden{
+  display:none !important;
+}
