@@ -319,19 +319,33 @@ const requestedEmailCount=document.getElementById('requestedEmailCount')
 const requestedEmailNames=document.getElementById('requestedEmailNames')
 const emailRequestTotal=document.getElementById('emailRequestTotal')
 const emailRequestMessage=document.getElementById('emailRequestMessage')
-const addEmailCountPreview=document.getElementById('addEmailCountPreview')
+const addEmailCountSelect=document.getElementById('addEmailCountSelect')
 const emailRequestPaymentBtn=document.getElementById('emailRequestPaymentBtn')
 function getBillingCycle(){return document.querySelector('input[name="billingCycle"]:checked')?.value||'monthly'}
 function renderRequestedEmailFields(){
   const count=Number(requestedEmailCount?.value||1)
   const existing=[...(requestedEmailNames?.querySelectorAll('input[data-email-name]')||[])].map(i=>i.value)
   requestedEmailNames.innerHTML=Array.from({length:count},(_,i)=>`<label class="request-field">Email ${i+1} name<div class="email-name-row"><input type="text" data-email-name maxlength="64" placeholder="example" value="${esc(existing[i]||'')}" required><span>@dflandscape.com</span></div></label>`).join('')
-  if(addEmailCountPreview)addEmailCountPreview.textContent=`${count} ${count===1?'email':'emails'}`
+  if(addEmailCountSelect&&document.activeElement!==addEmailCountSelect)addEmailCountSelect.value=String(count)
   updateRequestTotal()
 }
 function updateRequestTotal(){const c=Number(requestedEmailCount?.value||1);emailRequestTotal.textContent=getBillingCycle()==='yearly'?`$${c*24}/year`:`$${c*2}/month`}
-function resetRequest(){emailRequestForm?.reset();if(requestedEmailCount)requestedEmailCount.value='1';emailRequestMessage.textContent='';emailRequestFields?.classList.remove('hidden');emailRequestSuccess?.classList.add('hidden');if(emailRequestPaymentBtn){emailRequestPaymentBtn.hidden=true;emailRequestPaymentBtn.href='#'}renderRequestedEmailFields()}
-document.getElementById('openEmailRequestBtn')?.addEventListener('click',()=>{resetRequest();emailRequestModal.classList.remove('hidden')})
+function resetRequest(count=1){
+  emailRequestForm?.reset()
+  if(requestedEmailCount)requestedEmailCount.value=String(count)
+  emailRequestMessage.textContent=''
+  emailRequestFields?.classList.remove('hidden')
+  emailRequestSuccess?.classList.add('hidden')
+  if(emailRequestPaymentBtn){emailRequestPaymentBtn.hidden=true;emailRequestPaymentBtn.href='#'}
+  renderRequestedEmailFields()
+}
+addEmailCountSelect?.addEventListener('change',()=>{
+  if(requestedEmailCount)requestedEmailCount.value=addEmailCountSelect.value
+})
+document.getElementById('openEmailRequestBtn')?.addEventListener('click',()=>{
+  resetRequest(Number(addEmailCountSelect?.value||1))
+  emailRequestModal.classList.remove('hidden')
+})
 document.getElementById('closeEmailRequestBtn')?.addEventListener('click',()=>emailRequestModal.classList.add('hidden'))
 document.getElementById('closeRequestSuccessBtn')?.addEventListener('click',()=>{emailRequestModal.classList.add('hidden');loadAdminData()})
 requestedEmailCount?.addEventListener('change',renderRequestedEmailFields)
