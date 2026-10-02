@@ -122,27 +122,59 @@ window.addEventListener('resize',()=>{
   if(!window.matchMedia('(max-width:900px)').matches)readerPanel?.classList.remove('mobile-open')
 })
 
-let touchStartX=0,touchStartY=0,touchLastX=0,trackingEdgeSwipe=false
+let touchStartX=0,touchStartY=0,touchLastX=0,touchLastY=0,trackingHorizontalSwipe=false
+const SWIPE_START_ZONE=Math.min(window.innerWidth*0.7,320)
+
 document.addEventListener('touchstart',e=>{
   if(!isMobileMenuMode()||e.touches.length!==1)return
-  touchStartX=e.touches[0].clientX
-  touchStartY=e.touches[0].clientY
+
+  const touch=e.touches[0]
+  touchStartX=touch.clientX
+  touchStartY=touch.clientY
   touchLastX=touchStartX
-  trackingEdgeSwipe=touchStartX<=28||mailSidebar?.classList.contains('mobile-open')
+  touchLastY=touchStartY
+
+  const readerOpen=readerPanel?.classList.contains('mobile-open')
+  const sidebarOpen=mailSidebar?.classList.contains('mobile-open')
+  const startedInLeftZone=touchStartX<=SWIPE_START_ZONE
+
+  trackingHorizontalSwipe=readerOpen||sidebarOpen||startedInLeftZone
 },{passive:true})
+
 document.addEventListener('touchmove',e=>{
-  if(!trackingEdgeSwipe||e.touches.length!==1)return
-  touchLastX=e.touches[0].clientX
+  if(!trackingHorizontalSwipe||e.touches.length!==1)return
+  const touch=e.touches[0]
+  touchLastX=touch.clientX
+  touchLastY=touch.clientY
 },{passive:true})
+
 document.addEventListener('touchend',e=>{
-  if(!trackingEdgeSwipe)return
-  const dx=touchLastX-touchStartX
-  const dy=(e.changedTouches?.[0]?.clientY??touchStartY)-touchStartY
-  if(Math.abs(dx)>=55&&Math.abs(dx)>Math.abs(dy)*1.2){
-    if(dx>0&&touchStartX<=28)openMobileMenu()
-    if(dx<0&&mailSidebar?.classList.contains('mobile-open'))closeMobileMenu()
+  if(!trackingHorizontalSwipe)return
+
+  const endTouch=e.changedTouches?.[0]
+  const endX=endTouch?.clientX??touchLastX
+  const endY=endTouch?.clientY??touchLastY
+  const dx=endX-touchStartX
+  const dy=endY-touchStartY
+
+  const horizontalEnough=Math.abs(dx)>=60&&Math.abs(dx)>Math.abs(dy)*1.15
+
+  if(horizontalEnough){
+    const readerOpen=readerPanel?.classList.contains('mobile-open')
+    const sidebarOpen=mailSidebar?.classList.contains('mobile-open')
+
+    if(dx>0){
+      if(readerOpen){
+        closeMobileReader()
+      }else if(!sidebarOpen){
+        openMobileMenu()
+      }
+    }else if(dx<0&&sidebarOpen){
+      closeMobileMenu()
+    }
   }
-  trackingEdgeSwipe=false
+
+  trackingHorizontalSwipe=false
 },{passive:true})
 
 renderReader();await loadAccounts()
