@@ -559,6 +559,7 @@ function renderMessages(){
     const m=thread.latest
     const selected=selectedIds.has(String(m.uid))
     const unread=thread.messages.some(x=>x.seen===false)
+    const active=activeMessageId&&thread.messages.some(x=>String(x.uid)===String(activeMessageId))
     return `<div class="message-swipe-shell" data-shell-id="${esc(m.uid)}">
       <div class="swipe-action swipe-action-read">${m.seen===false?'Read':'Unread'}</div>
       <div class="swipe-action swipe-action-delete">Delete</div>
@@ -567,7 +568,7 @@ function renderMessages(){
           <span class="selection-dot">${selected?'✓':''}</span>
         </button>
         <button class="message-star ${m.flagged?'active':''}" data-star-id="${esc(m.uid)}" type="button" aria-label="${m.flagged?'Unstar':'Star'} message">★</button>
-        <button class="message-row ${unread?'unread':''}" data-id="${esc(m.uid)}">
+        <button class="message-row ${unread?'unread':''} ${active?'active':''}" data-id="${esc(m.uid)}">
           <span class="sender">${esc(senderDisplayName(m))}</span>
           <span class="time">${esc(formatDate(m.date))}</span>
           <span class="subject">${esc(m.subject||'(No subject)')}${thread.count>1?` <span class="thread-count">(${thread.count})</span>`:''}</span>
@@ -1269,6 +1270,22 @@ document.getElementById('bulkArchiveBtn')?.addEventListener('click',()=>runBulkA
 document.getElementById('bulkSpamBtn')?.addEventListener('click',()=>runBulkMove('Junk'))
 document.getElementById('bulkMoveSelect')?.addEventListener('change',e=>{if(e.target.value){runBulkMove(e.target.value);e.target.value=''}})
 document.getElementById('bulkDeleteBtn')?.addEventListener('click',()=>runBulkAction('delete'))
+async function refreshMailboxKeepingSelection(){
+  const selectedUid=activeMessageId?String(activeMessageId):''
+  await loadMessages({reset:true})
+
+  if(!selectedUid)return
+
+  const stillInMailbox=currentMessages.some(message=>String(message.uid)===selectedUid)
+  if(stillInMailbox){
+    await loadMessage(selectedUid)
+  }else{
+    activeMessageId=null
+    activeMessage=null
+    renderReader()
+  }
+}
+
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{
   activeFolder=btn.dataset.folder||'Inbox'
   selectedIds.clear();selectionMode=false
@@ -1278,7 +1295,7 @@ document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',a
   renderReader()
   closeMobileMenu()
 }))
-document.getElementById('refreshBtn')?.addEventListener('click',()=>loadMessages({reset:true}))
+document.getElementById('refreshBtn')?.addEventListener('click',refreshMailboxKeepingSelection)
 document.getElementById('composeBtn')?.addEventListener('click',openNewComposer)
 
 function closeComposeSafely(){
@@ -1492,7 +1509,7 @@ document.addEventListener('touchend',async()=>{
   if(pullRefreshIndicator)pullRefreshIndicator.hidden=true
   if(pullTriggered){
     pullTriggered=false
-    await loadMessages({reset:true})
+    await refreshMailboxKeepingSelection()
   }
 },{passive:true})
 
