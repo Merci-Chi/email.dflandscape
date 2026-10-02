@@ -547,3 +547,37 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .network-banner{top:64px}
   .notification-setting-row{align-items:flex-start}
 }
+
+
+/* Batch 8 — threads, schedule, snooze, rules, undo */
+.thread-count{font-weight:800;color:#738174;font-size:11px}
+.thread-conversation{display:grid;gap:10px;margin-top:16px}
+.thread-message{border:1px solid #dce3dc;border-radius:11px;background:#fff;overflow:hidden}
+.thread-message.active{border-color:#aebcaf;box-shadow:0 0 0 1px rgba(45,80,52,.06)}
+.thread-message-head{display:flex;justify-content:space-between;gap:14px;padding:10px 12px;background:#f8faf8;border-bottom:1px solid #e8ece8;font-size:11px}
+.thread-message-head strong{font-size:12px;color:#263a2b}
+.thread-message-head span{color:#7d887d;text-align:right}
+.thread-message-meta{padding:8px 12px 0;font-size:10px;color:#7d887d}
+.thread-message-body{padding:12px;overflow-wrap:anywhere;line-height:1.5}
+.compose-schedule-row{display:flex;align-items:end;gap:8px;flex-wrap:wrap;padding-top:4px}
+.compose-schedule-row label{flex:1;min-width:210px}
+.compose-schedule-row button{height:38px;border:1px solid #cfd8cf;background:#fff;color:#27402c;border-radius:8px;padding:0 12px;font-size:12px;font-weight:900}
+.compose-schedule-row button:hover{background:#eef3ee}
+.undo-send-toast{position:fixed;left:50%;bottom:max(22px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:150;display:flex;align-items:center;gap:16px;background:#17291c;color:#fff;padding:11px 12px 11px 16px;border-radius:11px;box-shadow:0 12px 38px rgba(0,0,0,.24);font-size:12px;font-weight:800}
+.undo-send-toast[hidden]{display:none!important}
+.undo-send-toast button{border:0;background:#fff;color:#17331e;border-radius:7px;padding:7px 11px;font-weight:900}
+.mail-rule-list{display:grid;gap:8px;margin-top:14px}
+.mail-rule-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:11px 12px;border:1px solid #dce3dc;border-radius:10px;background:#fafcfa}
+.mail-rule-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.mail-rule-copy strong{font-size:12px;color:#263a2b}
+.mail-rule-copy span{font-size:10px;color:#718071;line-height:1.4;overflow-wrap:anywhere}
+.mail-rule-actions{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.mail-rule-actions button{border:1px solid #e1c7c7;background:#fff;color:#8b3232;border-radius:7px;padding:6px 9px;font-size:10px;font-weight:800}
+@media(max-width:650px){
+  .compose-schedule-row{display:grid;grid-template-columns:1fr auto}
+  .compose-schedule-row label{min-width:0}
+  .undo-send-toast{width:calc(100% - 28px);justify-content:space-between}
+  .mail-rule-row{align-items:flex-start;flex-direction:column}
+  .mail-rule-actions{width:100%;justify-content:space-between}
+  .thread-message-head{align-items:flex-start;flex-direction:column;gap:3px}
+}
