@@ -441,3 +441,22 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .message-select.show{width:40px}
   .message-swipe-shell{touch-action:pan-y}
 }
+
+
+/* Batch 3 compose upgrades */
+.compose-recipient-toggle{display:flex;justify-content:flex-end;gap:8px;margin-top:-4px}
+.compose-recipient-toggle button{border:0;background:transparent;color:#31573a;font-size:12px;font-weight:900;padding:4px 6px;border-radius:6px}
+.compose-recipient-toggle button:hover{background:#eef3ee}
+.recipient-field{position:relative}
+.compose-extra-recipient.hidden{display:none!important}
+.recipient-suggestions{position:absolute;z-index:80;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #d7dfd7;border-radius:9px;box-shadow:0 12px 30px rgba(8,23,13,.14);max-height:210px;overflow-y:auto;padding:5px}
+.recipient-suggestions[hidden]{display:none!important}
+.recipient-suggestions button{width:100%;border:0;background:#fff;color:#2e3e31;text-align:left;padding:9px 10px;border-radius:7px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recipient-suggestions button:hover,.recipient-suggestions button:focus{background:#eef4ee;outline:none}
+.compose-draft-note{min-height:16px;font-size:11px;color:#7d887d;margin-top:-4px}
+#signatureText{min-height:130px;line-height:1.5}
+@media(max-width:650px){
+  .compose-recipient-toggle{position:sticky;top:0;background:#fff;z-index:2;padding:2px 0}
+  .recipient-suggestions{position:fixed;left:12px;right:12px;top:auto;max-height:180px}
+  #signatureText{min-height:150px}
+}
