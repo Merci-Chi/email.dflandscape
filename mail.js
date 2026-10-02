@@ -508,7 +508,10 @@ function searchMatchInfo(message){
     return {where:'email',value:emailHit}
   }
 
-  return {where:'contents',value:''}
+  const snippet=String(message.snippet||'')
+  if(snippet.toLowerCase().includes(q))return {where:'preview',value:snippet}
+
+  return {where:'message data',value:''}
 }
 
 function searchMatchLabel(message){
