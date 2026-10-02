@@ -792,3 +792,380 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
     flex-wrap:nowrap;
   }
 }
+
+/* =========================
+   MOBILE QUALITY PASS
+   ========================= */
+@media(max-width:650px){
+  html,body{font-size:16px}
+  body{overflow-x:hidden}
+  button,a,input,select,textarea{touch-action:manipulation}
+  button,.signout,.folder,.utility-link,.account-btn{min-height:44px}
+
+  /* Top bar */
+  .topbar{
+    height:60px;
+    padding-left:max(8px,env(safe-area-inset-left));
+    padding-right:max(8px,env(safe-area-inset-right));
+  }
+  .topbar-main-logo{width:32px;height:32px}
+  .mobile-menu-btn{width:42px;height:42px}
+  .signout{font-size:12px;padding:8px 10px}
+  .topbar-actions{gap:4px}
+  .topbar-nav{
+    max-width:calc(100vw - 110px);
+    overflow-x:auto;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+  }
+  .topbar-nav::-webkit-scrollbar{display:none}
+  .topbar-tab{flex:0 0 auto;font-size:12px;padding:8px}
+
+  /* Mail shell */
+  .mail-shell{
+    min-height:calc(100dvh - 60px);
+    height:auto!important;
+    display:block!important;
+    overflow:visible!important;
+  }
+  .inbox-panel{
+    min-height:calc(100dvh - 60px);
+    height:auto!important;
+    overflow:visible!important;
+  }
+  .inbox-head{
+    padding:12px 12px 10px!important;
+    gap:8px!important;
+  }
+  .inbox-head h1{font-size:21px;line-height:1.1}
+  .inbox-head p{font-size:12px}
+
+  /* One compact toolbar row */
+  .inbox-actions{
+    display:flex!important;
+    flex-wrap:nowrap!important;
+    width:100%!important;
+    gap:6px!important;
+    overflow:visible!important;
+    margin-top:9px!important;
+  }
+  .toolbar-icon-btn,
+  .header-select-all,
+  #refreshBtn{
+    width:38px!important;
+    min-width:38px!important;
+    height:38px!important;
+    flex:0 0 38px!important;
+  }
+  #searchInput{
+    min-width:0!important;
+    width:auto!important;
+    max-width:none!important;
+    flex:1 1 0!important;
+    height:38px!important;
+    font-size:16px!important;
+  }
+  .mail-toolbar-menu{flex:0 0 38px!important}
+  .toolbar-popover{
+    position:fixed!important;
+    left:12px!important;
+    right:12px!important;
+    top:auto!important;
+    width:auto!important;
+    min-width:0!important;
+    max-height:50dvh;
+    overflow:auto;
+    z-index:90;
+  }
+
+  /* Inbox rows */
+  .message-row-wrap{
+    grid-template-columns:38px 38px minmax(0,1fr)!important;
+  }
+  .message-select,.message-select.show{width:38px!important}
+  .message-star{font-size:20px}
+  .message-row{
+    min-width:0;
+    min-height:68px;
+    padding:11px 12px!important;
+    gap:4px 8px;
+  }
+  .sender{
+    min-width:0;
+    max-width:100%;
+    font-size:14px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .time{font-size:11px;white-space:nowrap}
+  .subject{font-size:13px}
+  .snippet{
+    font-size:12px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .search-match-note{font-size:11px}
+
+  /* Bulk tools */
+  .bulk-toolbar{
+    top:60px!important;
+    padding:8px 10px!important;
+    gap:6px!important;
+    overflow-x:auto;
+    flex-wrap:nowrap!important;
+  }
+  .bulk-toolbar button,.bulk-move-select{min-height:38px}
+
+  /* Reader becomes a proper mobile page */
+  .reader-panel.mobile-open{
+    top:60px!important;
+    left:0!important;
+    right:0!important;
+    bottom:0!important;
+    position:fixed!important;
+    z-index:70!important;
+    background:#fff;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch;
+  }
+  .reader{
+    padding:10px 12px calc(24px + env(safe-area-inset-bottom))!important;
+    width:100%;
+  }
+  .mobile-reader-back{
+    min-height:40px;
+    margin-bottom:8px;
+  }
+  .reader h2{
+    font-size:22px!important;
+    line-height:1.18!important;
+    margin-top:8px;
+  }
+  .reader-meta{
+    font-size:12px!important;
+    line-height:1.45;
+    padding-bottom:14px;
+  }
+  .reader-body,.thread-message-body{
+    font-size:15px;
+    line-height:1.6;
+    overflow-wrap:anywhere;
+  }
+
+  /* Reader actions: no horizontal overflow */
+  .message-actions{
+    position:static!important;
+    display:grid!important;
+    gap:6px!important;
+    padding:0 0 12px!important;
+    margin:0 0 12px!important;
+    overflow:visible!important;
+  }
+  .message-action-row{
+    display:grid!important;
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    width:100%!important;
+    gap:6px!important;
+  }
+  .message-action-btn{
+    width:100%;
+    min-width:0!important;
+    min-height:44px!important;
+    padding:7px 6px!important;
+    gap:5px!important;
+    font-size:11px!important;
+    line-height:1.15!important;
+    white-space:normal;
+  }
+  .message-action-btn svg{width:17px;height:17px;flex-basis:17px}
+  .message-action-divider{display:none!important}
+
+  /* Email content and attachments */
+  .email-frame{
+    width:100%!important;
+    min-height:360px!important;
+    max-width:100%!important;
+  }
+  .reader table{
+    display:block;
+    max-width:100%!important;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .reader img,.reader video,.reader canvas,.reader svg{
+    max-width:100%!important;
+    height:auto!important;
+  }
+  .email-attachment-list{display:grid!important;grid-template-columns:1fr!important}
+  .email-attachment{
+    width:100%!important;
+    min-height:64px!important;
+  }
+  .email-attachment img{height:120px}
+
+  /* Compose = phone composer, not centered desktop modal */
+  .modal-backdrop{
+    padding:0!important;
+    place-items:stretch!important;
+    overflow:hidden!important;
+  }
+  .compose-modal{
+    width:100%!important;
+    height:100dvh!important;
+    max-height:100dvh!important;
+    border-radius:0!important;
+    box-shadow:none!important;
+    padding:
+      max(12px,env(safe-area-inset-top))
+      12px
+      max(12px,env(safe-area-inset-bottom))!important;
+    overflow-y:auto!important;
+    gap:9px!important;
+  }
+  .compose-head{
+    position:sticky;
+    top:0;
+    z-index:3;
+    background:#fff;
+    padding-bottom:6px;
+  }
+  .compose-head h2{font-size:20px;margin:0}
+  .compose-head button{
+    min-width:44px;
+    min-height:44px;
+    font-size:26px;
+  }
+  .compose-modal label{font-size:13px}
+  .compose-modal input,
+  .compose-modal select,
+  .compose-modal textarea{font-size:16px!important}
+  .compose-modal textarea{
+    min-height:180px!important;
+    flex:1;
+  }
+  .compose-actions{
+    position:sticky!important;
+    bottom:calc(-1 * env(safe-area-inset-bottom));
+    z-index:3;
+    background:#fff;
+    border-top:1px solid var(--line);
+    margin:0 -12px;
+    padding:10px 12px max(10px,env(safe-area-inset-bottom))!important;
+  }
+  .compose-actions button{min-height:44px}
+  .compose-attachment-chip{max-width:100%}
+  .attachment-chip-copy strong{max-width:220px}
+
+  /* Account + settings */
+  .account-page-main,
+  .account-shell .account-page-main{
+    width:100%!important;
+    margin:0!important;
+    padding:14px 10px calc(28px + env(safe-area-inset-bottom))!important;
+    overflow:visible!important;
+  }
+  .account-page-head{margin:2px 4px 14px}
+  .account-page-head h1{font-size:25px!important;line-height:1.15}
+  .account-page-head p{font-size:13px;line-height:1.5}
+  .account-card{
+    margin-bottom:12px!important;
+    padding:15px 13px!important;
+    border-radius:12px!important;
+    box-shadow:none!important;
+  }
+  .account-card h2{font-size:18px}
+  .account-card-subtext{font-size:13px;line-height:1.45;margin-bottom:14px}
+  .account-form{gap:13px}
+  .account-form label{font-size:13px}
+  .account-form input,
+  .account-form select,
+  .account-form textarea{font-size:16px!important}
+  .account-form button,.account-primary-btn{
+    min-height:44px;
+    width:100%!important;
+  }
+  .email-account-row{
+    padding:12px!important;
+    gap:10px!important;
+    flex-direction:column!important;
+    align-items:flex-start!important;
+  }
+  .email-badge{font-size:11px}
+
+  /* Account nav is a horizontal mobile tab bar */
+  .account-sidebar{
+    display:block!important;
+    padding:8px!important;
+    overflow-x:auto!important;
+    border-bottom:1px solid var(--line);
+    scrollbar-width:none;
+  }
+  .account-sidebar::-webkit-scrollbar{display:none}
+  .account-sidebar .utility-nav{
+    display:flex!important;
+    flex-wrap:nowrap!important;
+    gap:6px!important;
+    width:max-content;
+    margin:0!important;
+    padding:0!important;
+    border:0!important;
+  }
+  .account-sidebar .utility-link{
+    flex:0 0 auto;
+    min-width:110px;
+    justify-content:center;
+    min-height:42px;
+    padding:8px 10px!important;
+    font-size:12px!important;
+  }
+
+  /* Login */
+  .login-page{
+    align-items:start;
+    padding:
+      max(12px,env(safe-area-inset-top))
+      10px
+      max(16px,env(safe-area-inset-bottom))!important;
+  }
+  .login-wrap{width:100%!important;max-width:430px}
+  .login-brand-header{padding:10px 12px!important}
+  .login-main-logo{width:38px!important;height:38px!important}
+  .login-header-brand{gap:8px!important}
+  .login-brand-images{max-width:220px!important}
+  .login-card-body{padding:18px 16px 20px!important}
+  .login-card h1{font-size:28px!important}
+  .subtext{margin-bottom:20px!important;font-size:14px}
+  .login-form{gap:13px!important}
+  .login-form input{font-size:16px!important}
+  .small-note{margin-top:12px!important;font-size:12px}
+
+  /* readable secondary text */
+  .account-help,
+  .admin-email-copy span,
+  .admin-user-copy span,
+  .pending-request-meta,
+  .attachment-help,
+  .compose-draft-note{
+    font-size:12px!important;
+    line-height:1.45;
+  }
+}
+
+@media(max-width:380px){
+  .inbox-head{padding-left:9px!important;padding-right:9px!important}
+  .inbox-actions{gap:5px!important}
+  .toolbar-icon-btn,
+  .header-select-all,
+  #refreshBtn,
+  .mail-toolbar-menu{
+    width:36px!important;
+    min-width:36px!important;
+    flex-basis:36px!important;
+  }
+  #searchInput{font-size:16px!important}
+  .message-row-wrap{grid-template-columns:36px 36px minmax(0,1fr)!important}
+  .message-select,.message-select.show{width:36px!important}
+  .message-action-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .reader{padding-left:10px!important;padding-right:10px!important}
+}
