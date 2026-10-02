@@ -1,13 +1,40 @@
-const CACHE_NAME = 'dfl-email-runtime-v1'
+const CACHE_NAME = 'dfl-email-runtime-v2'
+const APP_SHELL = [
+  '/',
+  '/index.html',
+  '/mail.html',
+  '/settings.html',
+  '/manage-emails.html',
+  '/styles.css',
+  '/app.js',
+  '/mail.js',
+  '/account-pages.js',
+  '/manifest.json',
+  '/assets/icon-192x192.png',
+  '/assets/icon-512x512.png'
+]
 
 self.addEventListener('install', event => {
-  self.skipWaiting()
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME)
+    await Promise.all(APP_SHELL.map(async url => {
+      try {
+        const response = await fetch(new Request(url, { cache: 'no-store' }))
+        if (response.ok) await cache.put(url, response.clone())
+      } catch {}
+    }))
+    await self.skipWaiting()
+  })())
 })
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys()
-    await Promise.all(keys.filter(key => key.startsWith('dfl-email-') && key !== CACHE_NAME).map(key => caches.delete(key)))
+    await Promise.all(
+      keys
+        .filter(key => key.startsWith('dfl-email-') && key !== CACHE_NAME)
+        .map(key => caches.delete(key))
+    )
     await self.clients.claim()
   })())
 })
@@ -21,25 +48,59 @@ self.addEventListener('fetch', event => {
 
   const isAppAsset =
     request.mode === 'navigate' ||
-    ['document', 'script', 'style', 'manifest'].includes(request.destination) ||
-    /\.(?:html|js|css|json)$/.test(url.pathname)
+    ['document', 'script', 'style', 'manifest', 'image'].includes(request.destination) ||
+    /\.(?:html|js|css|json|png|jpg|jpeg|webp|svg)$/.test(url.pathname)
 
   if (!isAppAsset) return
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME)
+
     try {
       const freshRequest = new Request(request, { cache: 'no-store' })
       const response = await fetch(freshRequest)
+
       if (response && response.ok) {
         cache.put(request, response.clone()).catch(() => {})
       }
+
       return response
     } catch (error) {
-      const cached = await cache.match(request)
+      const cached =
+        await cache.match(request) ||
+        await cache.match(url.pathname) ||
+        (request.mode === 'navigate' ? await cache.match('/mail.html') : null)
+
       if (cached) return cached
       throw error
     }
+  })())
+})
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close()
+
+  const target =
+    event.notification?.data?.url ||
+    '/mail.html'
+
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    })
+
+    for (const client of windows) {
+      try {
+        const clientUrl = new URL(client.url)
+        if (clientUrl.origin === self.location.origin) {
+          await client.navigate(target)
+          return client.focus()
+        }
+      } catch {}
+    }
+
+    return self.clients.openWindow(target)
   })())
 })
 
@@ -47,11 +108,34 @@ self.addEventListener('message', event => {
   if (event.data?.type === 'CLEAR_APP_CACHE') {
     event.waitUntil((async () => {
       const keys = await caches.keys()
-      await Promise.all(keys.filter(key => key.startsWith('dfl-email-')).map(key => caches.delete(key)))
+      await Promise.all(
+        keys
+          .filter(key => key.startsWith('dfl-email-'))
+          .map(key => caches.delete(key))
+      )
     })())
   }
 
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting()
+  }
+
+  if (event.data?.type === 'SHOW_NOTIFICATION') {
+    const data = event.data
+    event.waitUntil(
+      self.registration.showNotification(
+        data.title || 'New email',
+        {
+          body: data.body || '',
+          icon: '/assets/icon-192x192.png',
+          badge: '/assets/icon-192x192.png',
+          tag: data.tag || 'dfl-mail',
+          renotify: true,
+          data: {
+            url: data.url || '/mail.html'
+          }
+        }
+      )
+    )
   }
 })
