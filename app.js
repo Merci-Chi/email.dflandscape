@@ -103,7 +103,12 @@ function validatePasswords(password, confirmPassword) {
 async function routeSignedInUser(user) {
   if (!user) return
   const metadata = user.user_metadata || {}
-  const needsSetup = metadata.force_password_change === true || metadata.onboarding_complete !== true
+  const onboardingFinished =
+    metadata.onboarding_complete === true &&
+    typeof metadata.onboarding_completed_at === 'string' &&
+    metadata.onboarding_completed_at.length > 0
+
+  const needsSetup = metadata.force_password_change === true || !onboardingFinished
   if (needsSetup) {
     document.getElementById('displayName').value = user.user_metadata?.display_name || ''
     setHeading('Finish setup', 'Add your display name and choose your private login password.')
@@ -248,6 +253,7 @@ firstLoginForm.addEventListener('submit', async (event) => {
       data: {
         display_name: displayName,
         onboarding_complete: true,
+        onboarding_completed_at: new Date().toISOString(),
         force_password_change: false
       }
     })
