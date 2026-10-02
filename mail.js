@@ -47,6 +47,7 @@ function getSavedOpenMessage(){
 }
 let selectedIds=new Set(),selectionMode=false,longPressTimer=null
 let mailPage=0,mailPageSize=20,mailHasMore=false,mailLoading=false,searchTimer=null,pendingMailReload=false
+let fullSearchMessages=[],fullSearchKey='',fullSearchPromise=null,searchRequestId=0
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),mailFilter=document.getElementById('mailFilter'),mailSort=document.getElementById('mailSort'),loadMoreWrap=document.getElementById('loadMoreWrap'),loadMoreBtn=document.getElementById('loadMoreBtn'),pullRefreshIndicator=document.getElementById('pullRefreshIndicator'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const composeTo=document.getElementById('composeTo'),composeCc=document.getElementById('composeCc'),composeBcc=document.getElementById('composeBcc'),composeSubject=document.getElementById('composeSubject'),composeBody=document.getElementById('composeBody'),composeDraftNote=document.getElementById('composeDraftNote')
@@ -435,22 +436,22 @@ async function applyLaunchTarget(){
   renderAccounts()
   document.querySelectorAll('.folder').forEach(btn=>btn.classList.toggle('active',(btn.dataset.folder||'Inbox')===activeFolder))
 
+  let selectedLoad=null
   if(uid&&activeAccount){
     activeMessageId=uid
     renderReaderSkeleton()
+    selectedLoad=loadMessage(uid,{sourceFolderOverride:activeFolder})
   }
 
-  if(activeAccount)await loadMessages({reset:true})
+  const mailboxLoad=activeAccount?loadMessages({reset:true}):null
+  await Promise.allSettled([selectedLoad,mailboxLoad].filter(Boolean))
 
-  if(uid&&activeAccount){
-    try{
-      await loadMessage(uid)
-    }catch{
-      clearOpenMessage()
-      activeMessageId=null
-      activeMessage=null
-      renderReader()
-    }
+  if(uid&&activeAccount&&activeMessage&&String(activeMessage.uid)===String(uid)){
+    loadThreadConversation(activeMessage).then(threadMessages=>{
+      if(String(activeMessageId)===String(uid)&&threadMessages.length>1){
+        renderLoadedMessage(activeMessage,threadMessages,{preserveScroll:true})
+      }
+    }).catch(()=>{})
   }
 }
 
@@ -493,10 +494,80 @@ function renderAccounts(){
   if(!accountList)return
   if(!accounts.length){accountList.innerHTML='<div class="no-access">No mailbox access.</div>';return}
   accountList.innerHTML=accounts.map(a=>`<button class="account-btn ${activeAccount?.email===a.email?'active':''}" data-email="${esc(a.email)}"><span class="account-copy"><strong>${esc(a.name)}</strong><span>${esc(a.email)}</span></span></button>`).join('')
-  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;activeMessage=null;clearOpenMessage();renderAccounts();renderComposeAccounts();await loadMessages({reset:true});renderReader();closeMobileMenu()})
+  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;activeMessage=null;clearOpenMessage();clearFullSearchCache();renderAccounts();renderComposeAccounts();await loadMessages({reset:true});renderReader();closeMobileMenu()})
 }
+function clearFullSearchCache(){
+  fullSearchMessages=[]
+  fullSearchKey=''
+  fullSearchPromise=null
+}
+async function loadFullMailboxHeaders(){
+  if(!activeAccount)return []
+  const key=`${activeAccount.email}|${activeFolder}|${mailSort?.value||'newest'}`
+  if(fullSearchKey===key&&fullSearchMessages.length)return fullSearchMessages
+  if(fullSearchKey===key&&fullSearchPromise)return fullSearchPromise
+
+  fullSearchKey=key
+  fullSearchPromise=(async()=>{
+    const all=[]
+    let page=0
+    let hasMore=true
+
+    while(hasMore){
+      const result=await callMailFunction({
+        action:'list',
+        folder:activeFolder,
+        mailbox_email:activeAccount.email,
+        query:'',
+        page,
+        page_size:100,
+        sort:mailSort?.value||'newest'
+      })
+      const rows=Array.isArray(result)?result:(result?.messages||[])
+      all.push(...rows)
+      hasMore=!Array.isArray(result)&&result?.hasMore===true
+      page+=1
+      if(Array.isArray(result)||!rows.length)break
+    }
+
+    fullSearchMessages=all
+    return all
+  })()
+
+  try{return await fullSearchPromise}
+  finally{fullSearchPromise=null}
+}
+
 async function loadMessages({reset=true}={}){
   if(!activeAccount)return
+
+  const query=(searchInput?.value||'').trim()
+  const requestId=++searchRequestId
+
+  if(query){
+    if(reset){
+      const previousCount=currentMessages.length||getMailboxSnapshot()?.messages?.length||0
+      selectedIds.clear()
+      selectionMode=false
+      renderMessageListSkeleton(previousCount)
+    }
+
+    try{
+      const all=await loadFullMailboxHeaders()
+      if(requestId!==searchRequestId)return
+      currentMessages=all
+      mailHasMore=false
+      await loadSnoozedState()
+      renderMessages()
+      updateLoadMore()
+      updateNetworkBanner()
+    }catch(e){
+      if(requestId!==searchRequestId)return
+      messageList.innerHTML=`<div class="empty-reader" style="height:220px"><strong>Unable to search mail</strong><span>${esc(e.message)}</span></div>`
+    }
+    return
+  }
+
   if(mailLoading){
     if(reset)pendingMailReload=true
     return
@@ -526,15 +597,15 @@ async function loadMessages({reset=true}={}){
       action:'list',
       folder:activeFolder,
       mailbox_email:activeAccount.email,
-      query:(searchInput?.value||'').trim(),
-      page:mailPage,
-      page_size:(searchInput?.value||'').trim()?10000:mailPageSize,
+      query:'',
+      page:0,
+      page_size:mailPageSize,
       sort:mailSort?.value||'newest'
     })
     const pageMessages=Array.isArray(result)?result:(result?.messages||[])
-    currentMessages=reset?pageMessages:[...currentMessages,...pageMessages]
-    mailHasMore=Array.isArray(result)?false:result?.hasMore===true
-    mailPage+=1
+    currentMessages=pageMessages.slice(0,mailPageSize)
+    mailHasMore=false
+    mailPage=1
     await loadSnoozedState()
     renderMessages()
     updateLoadMore()
@@ -877,17 +948,31 @@ async function ensureAttachmentData(index){
   const current=activeMessage?.attachments?.[i]
   if(!current)throw new Error('Attachment not found.')
   if(current.dataUrl&&current.base64)return current
+
   const folder=activeMessage?.sourceFolder||messageFolder(activeMessageId)||activeFolder
-  const loaded=await callMailFunction({
-    action:'get_attachment',
-    folder,
-    uid:String(activeMessageId),
-    attachment_index:i,
-    mailbox_email:activeAccount.email
-  })
-  activeMessage.attachments[i]={...current,...loaded}
-  saveMessageCache(activeMessage)
-  return activeMessage.attachments[i]
+
+  try{
+    const loaded=await callMailFunction({
+      action:'get_attachment',
+      folder,
+      uid:String(activeMessageId),
+      attachment_index:i,
+      mailbox_email:activeAccount.email
+    })
+    activeMessage.attachments[i]={...current,...loaded}
+    return activeMessage.attachments[i]
+  }catch{
+    const full=await callMailFunction({
+      action:'get',
+      folder,
+      uid:String(activeMessageId),
+      mailbox_email:activeAccount.email
+    })
+    const loaded=full?.attachments?.[i]
+    if(!loaded)throw new Error('Attachment not found.')
+    activeMessage.attachments[i]={...current,...loaded}
+    return activeMessage.attachments[i]
+  }
 }
 async function openAttachmentPreview(index){
   try{
@@ -1363,10 +1448,26 @@ searchInput?.addEventListener('input',()=>{
   clearTimeout(searchTimer)
   selectedIds.clear()
   selectionMode=false
-  loadMessages({reset:true})
+
+  const query=(searchInput.value||'').trim()
+  if(!query){
+    searchRequestId+=1
+    loadMessages({reset:true})
+    return
+  }
+
+  const key=`${activeAccount?.email||''}|${activeFolder}|${mailSort?.value||'newest'}`
+  if(fullSearchKey===key&&fullSearchMessages.length){
+    currentMessages=fullSearchMessages
+    renderMessages()
+    updateLoadMore()
+    return
+  }
+
+  searchTimer=setTimeout(()=>loadMessages({reset:true}),140)
 })
 mailFilter?.addEventListener('change',renderMessages)
-mailSort?.addEventListener('change',()=>loadMessages({reset:true}))
+mailSort?.addEventListener('change',()=>{clearFullSearchCache();loadMessages({reset:true})})
 
 const sortMenuBtn=document.getElementById('sortMenuBtn')
 const filterMenuBtn=document.getElementById('filterMenuBtn')
@@ -1429,22 +1530,14 @@ document.getElementById('bulkMoveSelect')?.addEventListener('change',e=>{if(e.ta
 document.getElementById('bulkDeleteBtn')?.addEventListener('click',()=>runBulkAction('delete'))
 async function refreshMailboxKeepingSelection(){
   const selectedUid=activeMessageId?String(activeMessageId):''
+  const selectedFolder=activeMessage?.sourceFolder||activeFolder
   await loadMessages({reset:true})
-
-  if(!selectedUid)return
-
-  const stillInMailbox=currentMessages.some(message=>String(message.uid)===selectedUid)
-  if(stillInMailbox){
-    await loadMessage(selectedUid)
-  }else{
-    activeMessageId=null
-    activeMessage=null
-    renderReader()
-  }
+  if(selectedUid)await loadMessage(selectedUid,{sourceFolderOverride:selectedFolder})
 }
 
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{
   activeFolder=btn.dataset.folder||'Inbox'
+  clearFullSearchCache()
   activeMessageId=null
   activeMessage=null
   clearOpenMessage()
