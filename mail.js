@@ -19,7 +19,7 @@ let composeAttachments=[]
 let composeDirty=false,draftSaveTimer=null,composeOpenedFromDraft=false,composeMailboxBeforeChange=''
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
 const manageEmailsLink=document.getElementById('manageEmailsLink')
-const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn')
+const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn'),headerSelectAllBtn=document.getElementById('headerSelectAllBtn')
 const networkBanner=document.getElementById('networkBanner')
 const NOTIFY_ENABLED_KEY='dfl_email_notifications_enabled',NOTIFY_SOUND_KEY='dfl_email_notification_sound'
 let backgroundCheckTimer=null,mailRules=[],snoozedMessageKeys=new Set(),pendingUndoTimer=null,pendingUndoPayload=null
@@ -562,9 +562,13 @@ function updateBulkToolbar(){
   if(!bulkToolbar)return
   bulkToolbar.hidden=!selectionMode
   if(bulkCount)bulkCount.textContent=`${selectedIds.size} selected`
-  if(bulkSelectAllBtn){
-    const ids=visibleMessageIds()
-    bulkSelectAllBtn.textContent=ids.length&&ids.every(id=>selectedIds.has(id))?'Clear all':'Select all'
+  const ids=visibleMessageIds()
+  const allSelected=ids.length&&ids.every(id=>selectedIds.has(id))
+  if(bulkSelectAllBtn)bulkSelectAllBtn.textContent=allSelected?'Clear all':'Select all'
+  if(headerSelectAllBtn){
+    headerSelectAllBtn.classList.toggle('active',!!allSelected)
+    const label=headerSelectAllBtn.querySelector('span:last-child')
+    if(label)label.textContent=allSelected?'Clear all':'Select all'
   }
 }
 function attachLongPressHandlers(){
@@ -1119,13 +1123,16 @@ mailFilter?.addEventListener('change',renderMessages)
 mailSort?.addEventListener('change',()=>loadMessages({reset:true}))
 loadMoreBtn?.addEventListener('click',()=>loadMessages({reset:false}))
 document.getElementById('bulkCloseBtn')?.addEventListener('click',exitSelectionMode)
-document.getElementById('bulkSelectAllBtn')?.addEventListener('click',()=>{
+function toggleSelectAllVisible(){
   const ids=visibleMessageIds()
   const allSelected=ids.length&&ids.every(id=>selectedIds.has(id))
-  if(allSelected)ids.forEach(id=>selectedIds.delete(id));else ids.forEach(id=>selectedIds.add(id))
+  if(allSelected)ids.forEach(id=>selectedIds.delete(id))
+  else ids.forEach(id=>selectedIds.add(id))
   selectionMode=selectedIds.size>0
   renderMessages()
-})
+}
+document.getElementById('bulkSelectAllBtn')?.addEventListener('click',toggleSelectAllVisible)
+headerSelectAllBtn?.addEventListener('click',toggleSelectAllVisible)
 document.getElementById('bulkReadBtn')?.addEventListener('click',()=>runBulkAction('mark_read'))
 document.getElementById('bulkUnreadBtn')?.addEventListener('click',()=>runBulkAction('mark_unread'))
 document.getElementById('bulkStarBtn')?.addEventListener('click',()=>runBulkAction('star'))
