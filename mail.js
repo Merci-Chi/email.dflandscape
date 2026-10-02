@@ -12,6 +12,8 @@ let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,cur
 let selectedIds=new Set(),selectionMode=false,longPressTimer=null
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
+const composeTo=document.getElementById('composeTo'),composeCc=document.getElementById('composeCc'),composeBcc=document.getElementById('composeBcc'),composeSubject=document.getElementById('composeSubject'),composeBody=document.getElementById('composeBody'),composeDraftNote=document.getElementById('composeDraftNote')
+let composeDirty=false,draftSaveTimer=null,composeOpenedFromDraft=false
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
 const manageEmailsLink=document.getElementById('manageEmailsLink')
 const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn')
@@ -251,18 +253,106 @@ function renderReader(){
 }
 function renderComposeAccounts(){if(composeFrom)composeFrom.innerHTML=accounts.map(a=>`<option value="${esc(a.email)}" ${activeAccount?.email===a.email?'selected':''}>${esc(a.email)}</option>`).join('')}
 
-function setComposeValues({to='',subject='',body=''}={}){
+function signaturesMap(){
+  const value=session.user.user_metadata?.email_signatures
+  return value&&typeof value==='object'&&!Array.isArray(value)?value:{}
+}
+function getSignature(mailbox=composeFrom?.value||activeAccount?.email||''){
+  return String(signaturesMap()[mailbox]||'').trim()
+}
+function appendSignature(body='',mailbox=composeFrom?.value||activeAccount?.email||''){
+  const signature=getSignature(mailbox)
+  if(!signature)return body
+  const clean=String(body||'')
+  if(clean.includes(signature))return clean
+  return clean?`${clean}\n\n-- \n${signature}`:`-- \n${signature}`
+}
+function draftKey(mailbox=composeFrom?.value||activeAccount?.email||''){
+  return `dfl_email_draft_v1:${session.user.id}:${mailbox||'default'}`
+}
+function currentDraft(){
+  return {
+    from:composeFrom?.value||'',
+    to:composeTo?.value||'',
+    cc:composeCc?.value||'',
+    bcc:composeBcc?.value||'',
+    subject:composeSubject?.value||'',
+    body:composeBody?.value||''
+  }
+}
+function draftHasContent(draft=currentDraft()){
+  return [draft.to,draft.cc,draft.bcc,draft.subject,draft.body].some(v=>String(v||'').trim())
+}
+function saveDraftNow(){
+  if(!composeModal||composeModal.classList.contains('hidden'))return
+  const draft=currentDraft()
+  if(draftHasContent(draft)){
+    localStorage.setItem(draftKey(draft.from),JSON.stringify({...draft,saved_at:new Date().toISOString()}))
+    if(composeDraftNote)composeDraftNote.textContent='Draft saved'
+  }else{
+    localStorage.removeItem(draftKey(draft.from))
+    if(composeDraftNote)composeDraftNote.textContent=''
+  }
+}
+function scheduleDraftSave(){
+  composeDirty=true
+  if(composeDraftNote)composeDraftNote.textContent='Saving draft…'
+  clearTimeout(draftSaveTimer)
+  draftSaveTimer=setTimeout(()=>{saveDraftNow();composeDirty=false},450)
+}
+function clearDraft(mailbox=composeFrom?.value||activeAccount?.email||''){
+  localStorage.removeItem(draftKey(mailbox))
+  composeDirty=false
+  if(composeDraftNote)composeDraftNote.textContent=''
+}
+function restoreDraft(mailbox=composeFrom?.value||activeAccount?.email||''){
+  try{
+    const raw=localStorage.getItem(draftKey(mailbox))
+    if(!raw)return false
+    const draft=JSON.parse(raw)
+    if(composeTo)composeTo.value=draft.to||''
+    if(composeCc)composeCc.value=draft.cc||''
+    if(composeBcc)composeBcc.value=draft.bcc||''
+    if(composeSubject)composeSubject.value=draft.subject||''
+    if(composeBody)composeBody.value=draft.body||''
+    if(draft.cc)document.getElementById('ccRow')?.classList.remove('hidden')
+    if(draft.bcc)document.getElementById('bccRow')?.classList.remove('hidden')
+    if(composeDraftNote)composeDraftNote.textContent='Draft restored'
+    composeOpenedFromDraft=true
+    return true
+  }catch{return false}
+}
+function openNewComposer(){
   renderComposeAccounts()
   if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
-  const toInput=document.getElementById('composeTo')
-  const subjectInput=document.getElementById('composeSubject')
-  const bodyInput=document.getElementById('composeBody')
-  if(toInput)toInput.value=to
-  if(subjectInput)subjectInput.value=subject
-  if(bodyInput)bodyInput.value=body
+  composeOpenedFromDraft=false
   composeModal?.classList.remove('hidden')
   closeMobileMenu()
-  setTimeout(()=>bodyInput?.focus(),50)
+  const restored=restoreDraft()
+  if(!restored){
+    document.getElementById('composeForm')?.reset()
+    renderComposeAccounts()
+    if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
+    if(composeBody)composeBody.value=appendSignature('',composeFrom?.value)
+  }
+  setTimeout(()=>composeTo?.focus(),50)
+}
+function setComposeValues({to='',cc='',bcc='',subject='',body=''}={}){
+  renderComposeAccounts()
+  if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
+  if(composeTo)composeTo.value=to
+  if(composeCc)composeCc.value=cc
+  if(composeBcc)composeBcc.value=bcc
+  if(composeSubject)composeSubject.value=subject
+  if(composeBody)composeBody.value=appendSignature(body,composeFrom?.value)
+  if(cc)document.getElementById('ccRow')?.classList.remove('hidden')
+  if(bcc)document.getElementById('bccRow')?.classList.remove('hidden')
+  composeOpenedFromDraft=false
+  composeDirty=true
+  composeModal?.classList.remove('hidden')
+  closeMobileMenu()
+  scheduleDraftSave()
+  setTimeout(()=>composeBody?.focus(),50)
 }
 function replySubject(subject=''){
   return /^re:/i.test(subject)?subject:`Re: ${subject||'(No subject)'}`
@@ -289,14 +379,12 @@ function openReplyComposer(message){
 }
 function openReplyAllComposer(message){
   const own=(activeAccount?.email||'').toLowerCase()
-  const candidates=[
-    message.replyTo||message.from||'',
-    ...cleanAddressList(message.to),
-    ...cleanAddressList(message.cc)
-  ]
-  const unique=[...new Set(candidates.map(v=>v.trim()).filter(v=>v&&v.toLowerCase()!==own))]
+  const sender=message.replyTo||message.from||''
+  const ccCandidates=[...cleanAddressList(message.to),...cleanAddressList(message.cc)]
+    .filter(v=>v&&v.toLowerCase()!==own&&v.toLowerCase()!==sender.toLowerCase())
   setComposeValues({
-    to:unique.join(', '),
+    to:sender,
+    cc:[...new Set(ccCandidates)].join(', '),
     subject:replySubject(message.subject),
     body:quotedText(message)
   })
@@ -407,10 +495,101 @@ document.getElementById('bulkArchiveBtn')?.addEventListener('click',()=>runBulkA
 document.getElementById('bulkDeleteBtn')?.addEventListener('click',()=>runBulkAction('delete'))
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{activeFolder=btn.dataset.folder||'Inbox';document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn));await loadMessages();closeMobileMenu()}))
 document.getElementById('refreshBtn')?.addEventListener('click',loadMessages)
-document.getElementById('composeBtn')?.addEventListener('click',()=>{renderComposeAccounts();composeModal?.classList.remove('hidden');closeMobileMenu()})
-document.getElementById('closeCompose')?.addEventListener('click',()=>composeModal?.classList.add('hidden'))
-document.getElementById('composeForm')?.addEventListener('submit',async e=>{e.preventDefault();const status=document.getElementById('composeStatus');status.textContent='Sending...';try{await callMailFunction({action:'send',mailbox_email:composeFrom.value,to:document.getElementById('composeTo').value.trim(),subject:document.getElementById('composeSubject').value.trim(),body:document.getElementById('composeBody').value});status.textContent='Sent.';e.target.reset();setTimeout(()=>composeModal.classList.add('hidden'),700)}catch(err){status.textContent=err.message||'Unable to send.'}})
+document.getElementById('composeBtn')?.addEventListener('click',openNewComposer)
+
+function closeComposeSafely(){
+  saveDraftNow()
+  if(composeDirty&&draftHasContent()&&!confirm('Close this message? Your draft is saved and can be restored later.'))return
+  composeModal?.classList.add('hidden')
+}
+document.getElementById('closeCompose')?.addEventListener('click',closeComposeSafely)
+
+document.getElementById('showCcBtn')?.addEventListener('click',()=>{document.getElementById('ccRow')?.classList.toggle('hidden');if(!document.getElementById('ccRow')?.classList.contains('hidden'))composeCc?.focus()})
+document.getElementById('showBccBtn')?.addEventListener('click',()=>{document.getElementById('bccRow')?.classList.toggle('hidden');if(!document.getElementById('bccRow')?.classList.contains('hidden'))composeBcc?.focus()})
+
+;[composeTo,composeCc,composeBcc,composeSubject,composeBody].forEach(el=>el?.addEventListener('input',scheduleDraftSave))
+composeFrom?.addEventListener('change',()=>{
+  if(!composeOpenedFromDraft&&composeBody&&!composeBody.value.trim())composeBody.value=appendSignature('',composeFrom.value)
+  scheduleDraftSave()
+})
+
+document.getElementById('composeForm')?.addEventListener('submit',async e=>{
+  e.preventDefault()
+  const status=document.getElementById('composeStatus')
+  status.textContent='Sending...'
+  try{
+    await callMailFunction({
+      action:'send',
+      mailbox_email:composeFrom.value,
+      to:composeTo.value.trim(),
+      cc:composeCc?.value.trim()||'',
+      bcc:composeBcc?.value.trim()||'',
+      subject:composeSubject.value.trim(),
+      body:composeBody.value
+    })
+    rememberRecipients([composeTo.value,composeCc?.value,composeBcc?.value].join(','))
+    clearDraft(composeFrom.value)
+    status.textContent='Sent.'
+    e.target.reset()
+    document.getElementById('ccRow')?.classList.add('hidden')
+    document.getElementById('bccRow')?.classList.add('hidden')
+    setTimeout(()=>composeModal.classList.add('hidden'),700)
+  }catch(err){status.textContent=err.message||'Unable to send.'}
+})
 document.querySelector('.signout')?.addEventListener('click',async e=>{e.preventDefault();await supabase.auth.signOut();location.replace('index.html')})
+
+
+function normalizeAddressToken(value=''){
+  const match=String(value).match(/<([^<>\s]+@[^<>\s]+)>/)
+  return (match?.[1]||String(value)).trim().toLowerCase()
+}
+function knownRecipients(){
+  const set=new Set()
+  accounts.forEach(a=>set.add(a.email))
+  currentMessages.forEach(m=>[m.from,m.sender,m.to,m.cc].forEach(v=>cleanAddressList(v||'').forEach(x=>{const n=normalizeAddressToken(x);if(n.includes('@'))set.add(n)})))
+  try{JSON.parse(localStorage.getItem('dfl_email_recent_recipients')||'[]').forEach(v=>set.add(v))}catch{}
+  set.delete((activeAccount?.email||'').toLowerCase())
+  return [...set].filter(Boolean)
+}
+function rememberRecipients(value=''){
+  const incoming=cleanAddressList(value).map(normalizeAddressToken).filter(v=>v.includes('@'))
+  let saved=[]
+  try{saved=JSON.parse(localStorage.getItem('dfl_email_recent_recipients')||'[]')}catch{}
+  localStorage.setItem('dfl_email_recent_recipients',JSON.stringify([...new Set([...incoming,...saved])].slice(0,50)))
+}
+function wireRecipientAutocomplete(input,suggestions){
+  if(!input||!suggestions)return
+  const update=()=>{
+    const pieces=input.value.split(',')
+    const query=pieces.pop().trim().toLowerCase()
+    if(!query){suggestions.hidden=true;suggestions.innerHTML='';return}
+    const matches=knownRecipients().filter(v=>v.toLowerCase().includes(query)).slice(0,8)
+    if(!matches.length){suggestions.hidden=true;suggestions.innerHTML='';return}
+    suggestions.innerHTML=matches.map(v=>`<button type="button" data-email="${esc(v)}">${esc(v)}</button>`).join('')
+    suggestions.hidden=false
+    suggestions.querySelectorAll('[data-email]').forEach(btn=>btn.addEventListener('click',()=>{
+      const prefix=pieces.map(v=>v.trim()).filter(Boolean)
+      input.value=[...prefix,btn.dataset.email].join(', ')+(prefix.length||btn.dataset.email?', ':'')
+      suggestions.hidden=true
+      input.focus()
+      scheduleDraftSave()
+    }))
+  }
+  input.addEventListener('input',update)
+  input.addEventListener('focus',update)
+  input.addEventListener('blur',()=>setTimeout(()=>{suggestions.hidden=true},160))
+}
+wireRecipientAutocomplete(composeTo,document.getElementById('toSuggestions'))
+wireRecipientAutocomplete(composeCc,document.getElementById('ccSuggestions'))
+wireRecipientAutocomplete(composeBcc,document.getElementById('bccSuggestions'))
+
+window.addEventListener('beforeunload',e=>{
+  if(composeModal&&!composeModal.classList.contains('hidden')&&draftHasContent()){
+    saveDraftNow()
+    e.preventDefault()
+    e.returnValue=''
+  }
+})
 
 function isMobileMenuMode(){return window.matchMedia('(max-width:650px)').matches}
 function openMobileMenu(){
