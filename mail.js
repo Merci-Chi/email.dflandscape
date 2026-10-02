@@ -194,10 +194,11 @@ function attachMessageSwipeHandlers(){
         const action=m?.seen===false?'mark_read':'mark_unread'
         try{await setMessageState(action,uid);if(m)m.seen=action==='mark_read';renderMessages()}catch(err){alert(err.message||'Unable to update message.')}
       }else{
-        if(activeFolder==='Trash'){
+        const source=messageFolder(uid)
+        if(source==='Trash'){
           if(!confirm('Permanently delete this email?'))return
         }
-        try{await callMailFunction({action:'delete',folder:activeFolder,uid,mailbox_email:activeAccount.email});currentMessages=currentMessages.filter(x=>String(x.uid)!==String(uid));selectedIds.delete(String(uid));renderMessages()}catch(err){alert(err.message||'Unable to delete email.')}
+        try{await callMailFunction({action:'delete',folder:source,uid,mailbox_email:activeAccount.email});currentMessages=currentMessages.filter(x=>String(x.uid)!==String(uid));selectedIds.delete(String(uid));renderMessages()}catch(err){alert(err.message||'Unable to delete email.')}
       }
     },{passive:true})
   })
@@ -205,12 +206,12 @@ function attachMessageSwipeHandlers(){
 async function runBulkAction(action){
   const ids=[...selectedIds]
   if(!ids.length)return
-  const permanent=action==='delete'&&activeFolder==='Trash'
+  const permanent=action==='delete'&&ids.every(uid=>messageFolder(uid)==='Trash')
   if(action==='delete'&&!confirm(permanent?'Permanently delete selected emails?':'Move selected emails to Trash?'))return
   setBulkBusy(true)
   try{
     for(const uid of ids){
-      await callMailFunction({action,folder:activeFolder,uid,mailbox_email:activeAccount.email})
+      await callMailFunction({action,folder:messageFolder(uid),uid,mailbox_email:activeAccount.email})
       const row=currentMessages.find(x=>String(x.uid)===String(uid))
       if(action==='mark_read'&&row)row.seen=true
       if(action==='mark_unread'&&row)row.seen=false
@@ -263,7 +264,7 @@ async function loadMessage(uid){
     document.getElementById('moveMessageSelect')?.addEventListener('change',e=>{if(e.target.value)moveActiveMessage(e.target.value)})
     document.getElementById('deleteMessageBtn')?.addEventListener('click',deleteActiveMessage)
     if(m.seen===false){
-      callMailFunction({action:'mark_read',folder:activeFolder,uid,mailbox_email:activeAccount.email}).then(()=>{
+      callMailFunction({action:'mark_read',folder:sourceFolder,uid,mailbox_email:activeAccount.email}).then(()=>{
         const row=currentMessages.find(x=>String(x.uid)===String(uid));if(row)row.seen=true;renderMessages()
       }).catch(()=>{})
     }
@@ -520,12 +521,13 @@ async function runBulkMove(target){
 
 async function deleteActiveMessage(){
   if(!activeMessageId||!activeAccount)return
-  const permanent=activeFolder==='Trash'
+  const sourceFolder=messageFolder(activeMessageId)
+  const permanent=sourceFolder==='Trash'
   if(!confirm(permanent?'Permanently delete this email? This cannot be undone.':'Move this email to Trash?'))return
   const button=document.getElementById('deleteMessageBtn')
   if(button){button.disabled=true;button.textContent=permanent?'Deleting…':'Moving…'}
   try{
-    await callMailFunction({action:'delete',folder:activeFolder,uid:activeMessageId,mailbox_email:activeAccount.email})
+    await callMailFunction({action:'delete',folder:sourceFolder,uid:activeMessageId,mailbox_email:activeAccount.email})
     closeMobileReader()
     renderReader()
     await loadMessages()
