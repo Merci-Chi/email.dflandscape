@@ -13,7 +13,7 @@ let selectedIds=new Set(),selectionMode=false,longPressTimer=null
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const composeTo=document.getElementById('composeTo'),composeCc=document.getElementById('composeCc'),composeBcc=document.getElementById('composeBcc'),composeSubject=document.getElementById('composeSubject'),composeBody=document.getElementById('composeBody'),composeDraftNote=document.getElementById('composeDraftNote')
-let composeDirty=false,draftSaveTimer=null,composeOpenedFromDraft=false
+let composeDirty=false,draftSaveTimer=null,composeOpenedFromDraft=false,composeMailboxBeforeChange=''
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
 const manageEmailsLink=document.getElementById('manageEmailsLink')
 const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn')
@@ -508,7 +508,13 @@ document.getElementById('showCcBtn')?.addEventListener('click',()=>{document.get
 document.getElementById('showBccBtn')?.addEventListener('click',()=>{document.getElementById('bccRow')?.classList.toggle('hidden');if(!document.getElementById('bccRow')?.classList.contains('hidden'))composeBcc?.focus()})
 
 ;[composeTo,composeCc,composeBcc,composeSubject,composeBody].forEach(el=>el?.addEventListener('input',scheduleDraftSave))
+composeFrom?.addEventListener('focus',()=>{composeMailboxBeforeChange=composeFrom.value})
 composeFrom?.addEventListener('change',()=>{
+  if(composeMailboxBeforeChange&&draftHasContent()){
+    const draft=currentDraft()
+    localStorage.setItem(draftKey(composeMailboxBeforeChange),JSON.stringify({...draft,from:composeMailboxBeforeChange,saved_at:new Date().toISOString()}))
+  }
+  composeMailboxBeforeChange=composeFrom.value
   if(!composeOpenedFromDraft&&composeBody&&!composeBody.value.trim())composeBody.value=appendSignature('',composeFrom.value)
   scheduleDraftSave()
 })
