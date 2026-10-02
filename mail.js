@@ -11,7 +11,7 @@ if(!session?.user){location.replace('index.html');throw new Error('Not authentic
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
 let selectedIds=new Set(),selectionMode=false,longPressTimer=null
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
-const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
+const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),mailFilter=document.getElementById('mailFilter'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const composeTo=document.getElementById('composeTo'),composeCc=document.getElementById('composeCc'),composeBcc=document.getElementById('composeBcc'),composeSubject=document.getElementById('composeSubject'),composeBody=document.getElementById('composeBody'),composeDraftNote=document.getElementById('composeDraftNote')
 let composeDirty=false,draftSaveTimer=null,composeOpenedFromDraft=false,composeMailboxBeforeChange=''
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
@@ -53,13 +53,30 @@ function renderAccounts(){
 }
 async function loadMessages(){
   if(!activeAccount)return
-  mailboxHeading.textContent=activeFolder;mailboxAddress.textContent=activeAccount.email
+  mailboxHeading.textContent=activeFolder==='Junk'?'Spam':activeFolder
+  mailboxAddress.textContent=activeAccount.email
   messageList.innerHTML='<div class="empty-reader" style="height:220px"><strong>Loading mail...</strong></div>'
-  try{currentMessages=await callMailFunction({action:'list',folder:activeFolder,mailbox_email:activeAccount.email});renderMessages()}catch(e){messageList.innerHTML=`<div class="empty-reader" style="height:220px"><strong>Unable to load mail</strong><span>${esc(e.message)}</span></div>`}
+  try{
+    currentMessages=await callMailFunction({action:'list',folder:activeFolder,mailbox_email:activeAccount.email})
+    renderMessages()
+    await loadUnreadCount()
+  }catch(e){
+    messageList.innerHTML=`<div class="empty-reader" style="height:220px"><strong>Unable to load mail</strong><span>${esc(e.message)}</span></div>`
+  }
+}
+function filteredMessages(){
+  const q=(searchInput?.value||'').trim().toLowerCase()
+  const filter=mailFilter?.value||'all'
+  return currentMessages.filter(m=>{
+    if(q&&!`${m.sender} ${m.from} ${m.subject} ${m.to||''} ${m.cc||''}`.toLowerCase().includes(q))return false
+    if(filter==='unread'&&m.seen!==false)return false
+    if(filter==='starred'&&m.flagged!==true)return false
+    if(filter==='attachments'&&m.hasAttachments!==true)return false
+    return true
+  })
 }
 function renderMessages(){
-  const q=(searchInput?.value||'').trim().toLowerCase()
-  const msgs=currentMessages.filter(m=>!q||`${m.sender} ${m.from} ${m.subject}`.toLowerCase().includes(q))
+  const msgs=filteredMessages()
   messageList.innerHTML=msgs.length?msgs.map(m=>{
     const selected=selectedIds.has(String(m.uid))
     return `<div class="message-swipe-shell" data-shell-id="${esc(m.uid)}">
@@ -92,8 +109,21 @@ function renderMessages(){
 }
 
 function visibleMessageIds(){
-  const q=(searchInput?.value||'').trim().toLowerCase()
-  return currentMessages.filter(m=>!q||`${m.sender} ${m.from} ${m.subject}`.toLowerCase().includes(q)).map(m=>String(m.uid))
+  return filteredMessages().map(m=>String(m.uid))
+}
+function messageFolder(uid){
+  const row=currentMessages.find(x=>String(x.uid)===String(uid))
+  return row?.sourceFolder||activeFolder
+}
+async function loadUnreadCount(){
+  const badge=document.getElementById('inboxUnreadCount')
+  if(!badge||!activeAccount)return
+  try{
+    const counts=await callMailFunction({action:'counts',mailbox_email:activeAccount.email})
+    const count=Number(counts?.Inbox||0)
+    badge.textContent=String(count)
+    badge.hidden=count<1
+  }catch{}
 }
 function enterSelectionMode(uid){
   selectionMode=true
@@ -411,7 +441,7 @@ function openForwardComposer(message){
 
 async function setMessageState(action,uid=activeMessageId){
   if(!uid||!activeAccount)return
-  await callMailFunction({action,folder:activeFolder,uid,mailbox_email:activeAccount.email})
+  await callMailFunction({action,folder:messageFolder(uid),uid,mailbox_email:activeAccount.email})
 }
 async function toggleMessageFlag(uid){
   const row=currentMessages.find(x=>String(x.uid)===String(uid))
