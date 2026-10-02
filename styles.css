@@ -774,3 +774,21 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
     min-height:40px;
   }
 }
+
+/* Reader toolbar alignment after removing Snooze/Move */
+.message-action-row-primary,
+.message-action-row-secondary{
+  justify-content:flex-start;
+}
+.message-action-row-secondary{
+  padding-top:0;
+}
+.message-action-row-secondary .message-action-divider{
+  margin-left:2px;
+}
+@media(min-width:901px){
+  .message-action-row-primary,
+  .message-action-row-secondary{
+    flex-wrap:nowrap;
+  }
+}
