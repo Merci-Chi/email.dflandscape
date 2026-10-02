@@ -231,7 +231,9 @@ function setBulkBusy(busy){
 async function loadMessage(uid){
   try{
     activeMessageId=uid
-    const m=await callMailFunction({action:'get',folder:activeFolder,uid,mailbox_email:activeAccount.email})
+    const sourceFolder=messageFolder(uid)
+    const m=await callMailFunction({action:'get',folder:sourceFolder,uid,mailbox_email:activeAccount.email})
+    m.sourceFolder=sourceFolder
     activeMessage=m
     readerPanel.innerHTML=`<article class="reader reader-rich">
       <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
@@ -241,8 +243,10 @@ async function loadMessage(uid){
         <button type="button" class="message-action-btn" id="forwardMessageBtn">Forward</button>
         <button type="button" class="message-action-btn" id="readMessageBtn">${m.seen===false?'Mark read':'Mark unread'}</button>
         <button type="button" class="message-action-btn" id="starMessageBtn">${m.flagged?'Unstar':'Star'}</button>
-        ${activeFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn">Archive</button>':''}
-        <button type="button" class="message-action-btn danger" id="deleteMessageBtn">${activeFolder==='Trash'?'Delete forever':'Delete'}</button>
+        ${sourceFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn">Archive</button>':''}
+        ${sourceFolder!=='Junk'?'<button type="button" class="message-action-btn" id="spamMessageBtn">Spam</button>':''}
+        <select class="message-move-select" id="moveMessageSelect" aria-label="Move message"><option value="">Move to…</option><option value="Inbox">Inbox</option><option value="Archive">Archive</option><option value="Junk">Spam</option><option value="Trash">Trash</option></select>
+        <button type="button" class="message-action-btn danger" id="deleteMessageBtn">${sourceFolder==='Trash'?'Delete forever':'Delete'}</button>
       </div>
       <div class="eyebrow dark">Message</div>
       <h2>${esc(m.subject||'(No subject)')}</h2>
@@ -255,6 +259,8 @@ async function loadMessage(uid){
     document.getElementById('readMessageBtn')?.addEventListener('click',()=>toggleActiveReadState())
     document.getElementById('starMessageBtn')?.addEventListener('click',()=>toggleActiveStar())
     document.getElementById('archiveMessageBtn')?.addEventListener('click',archiveActiveMessage)
+    document.getElementById('spamMessageBtn')?.addEventListener('click',()=>moveActiveMessage('Junk'))
+    document.getElementById('moveMessageSelect')?.addEventListener('change',e=>{if(e.target.value)moveActiveMessage(e.target.value)})
     document.getElementById('deleteMessageBtn')?.addEventListener('click',deleteActiveMessage)
     if(m.seen===false){
       callMailFunction({action:'mark_read',folder:activeFolder,uid,mailbox_email:activeAccount.email}).then(()=>{
@@ -488,6 +494,30 @@ async function archiveActiveMessage(){
   }
 }
 
+async function moveActiveMessage(target){
+  if(!activeMessageId||!activeAccount||!target)return
+  try{
+    await callMailFunction({action:'move',folder:messageFolder(activeMessageId),target,uid:activeMessageId,mailbox_email:activeAccount.email})
+    closeMobileReader();renderReader();await loadMessages()
+  }catch(error){alert(error.message||'Unable to move email.')}
+}
+async function runBulkMove(target){
+  const ids=[...selectedIds]
+  if(!ids.length||!target)return
+  setBulkBusy(true)
+  try{
+    for(const uid of ids){
+      await callMailFunction({action:'move',folder:messageFolder(uid),target,uid,mailbox_email:activeAccount.email})
+      currentMessages=currentMessages.filter(x=>String(x.uid)!==String(uid))
+    }
+    exitSelectionMode()
+    await loadUnreadCount()
+  }catch(error){
+    alert(error.message||'Unable to move selected emails.')
+    renderMessages()
+  }finally{setBulkBusy(false)}
+}
+
 async function deleteActiveMessage(){
   if(!activeMessageId||!activeAccount)return
   const permanent=activeFolder==='Trash'
@@ -509,6 +539,7 @@ function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt
 function formatDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString([],{month:'short',day:'numeric'})}
 function formatFullDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString()}
 searchInput?.addEventListener('input',renderMessages)
+mailFilter?.addEventListener('change',renderMessages)
 document.getElementById('bulkCloseBtn')?.addEventListener('click',exitSelectionMode)
 document.getElementById('bulkSelectAllBtn')?.addEventListener('click',()=>{
   const ids=visibleMessageIds()
@@ -522,8 +553,18 @@ document.getElementById('bulkUnreadBtn')?.addEventListener('click',()=>runBulkAc
 document.getElementById('bulkStarBtn')?.addEventListener('click',()=>runBulkAction('star'))
 document.getElementById('bulkUnstarBtn')?.addEventListener('click',()=>runBulkAction('unstar'))
 document.getElementById('bulkArchiveBtn')?.addEventListener('click',()=>runBulkAction('archive'))
+document.getElementById('bulkSpamBtn')?.addEventListener('click',()=>runBulkMove('Junk'))
+document.getElementById('bulkMoveSelect')?.addEventListener('change',e=>{if(e.target.value){runBulkMove(e.target.value);e.target.value=''}})
 document.getElementById('bulkDeleteBtn')?.addEventListener('click',()=>runBulkAction('delete'))
-document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{activeFolder=btn.dataset.folder||'Inbox';document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn));await loadMessages();closeMobileMenu()}))
+document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{
+  activeFolder=btn.dataset.folder||'Inbox'
+  selectedIds.clear();selectionMode=false
+  document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn))
+  if(mailFilter)mailFilter.value='all'
+  await loadMessages()
+  renderReader()
+  closeMobileMenu()
+}))
 document.getElementById('refreshBtn')?.addEventListener('click',loadMessages)
 document.getElementById('composeBtn')?.addEventListener('click',openNewComposer)
 
