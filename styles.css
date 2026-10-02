@@ -1330,3 +1330,58 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
     padding-top:14px!important;
   }
 }
+
+
+/* Mobile reader actions: keep all message icons in one compact 1–2 row grid */
+@media(max-width:650px){
+  .reader-panel.mobile-open .message-actions{
+    position:static!important;
+    display:grid!important;
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    gap:8px!important;
+    width:100%!important;
+    padding:0 0 12px!important;
+    margin:0 0 12px!important;
+    overflow:visible!important;
+    border-bottom:1px solid var(--line);
+  }
+
+  .reader-panel.mobile-open .message-action-row{
+    display:contents!important;
+  }
+
+  .reader-panel.mobile-open .message-action-btn{
+    width:100%!important;
+    height:44px!important;
+    min-width:0!important;
+    min-height:44px!important;
+    max-width:none!important;
+    flex:none!important;
+    padding:0!important;
+    margin:0!important;
+    display:grid!important;
+    place-items:center!important;
+    border-radius:10px!important;
+  }
+
+  .reader-panel.mobile-open .message-action-btn svg{
+    width:21px!important;
+    height:21px!important;
+  }
+
+  .reader-panel.mobile-open .message-action-btn > span{
+    position:absolute!important;
+    width:1px!important;
+    height:1px!important;
+    padding:0!important;
+    margin:-1px!important;
+    overflow:hidden!important;
+    clip:rect(0,0,0,0)!important;
+    white-space:nowrap!important;
+    border:0!important;
+  }
+
+  .reader-panel.mobile-open .message-action-divider{
+    display:none!important;
+  }
+}
