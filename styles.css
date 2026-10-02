@@ -390,3 +390,19 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .message-actions{position:sticky;top:0;z-index:3;background:#fff;padding:6px 0 10px;margin-bottom:12px}
   .message-action-btn{flex:1;min-width:90px;min-height:42px}
 }
+
+
+/* Batch 1 inbox state + actions */
+.message-row-wrap{display:grid;grid-template-columns:38px minmax(0,1fr);align-items:stretch;border-bottom:1px solid #edf0ed;background:#fff}
+.message-row-wrap .message-row{border-bottom:0}
+.message-row-wrap.unread{background:#fbfcfb}
+.message-star{border:0;background:transparent;color:#aeb6ae;font-size:19px;display:grid;place-items:center;padding:0}
+.message-star:hover{background:#f4f7f4;color:#7d897d}
+.message-star.active{color:#b88a21}
+.message-row.unread .sender,.message-row.unread .subject{font-weight:900}
+@media(max-width:650px){
+  .message-row-wrap{grid-template-columns:40px minmax(0,1fr)}
+  .message-star{font-size:21px}
+  .message-actions{overflow-x:auto;flex-wrap:nowrap;padding-bottom:8px;-webkit-overflow-scrolling:touch}
+  .message-action-btn{flex:0 0 auto;min-width:auto}
+}
