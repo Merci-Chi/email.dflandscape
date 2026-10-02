@@ -8,7 +8,7 @@ const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY)
 const {data:{session}}=await supabase.auth.getSession()
 if(!session?.user){location.replace('index.html');throw new Error('Not authenticated')}
 
-let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[]
+let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
@@ -63,7 +63,22 @@ async function loadMessage(uid){
   try{
     activeMessageId=uid
     const m=await callMailFunction({action:'get',folder:activeFolder,uid,mailbox_email:activeAccount.email})
-    readerPanel.innerHTML=`<article class="reader reader-rich"><button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button><div class="eyebrow dark">Message</div><h2>${esc(m.subject||'(No subject)')}</h2><div class="reader-meta">From: ${esc(m.sender||m.from||'')}<br>To: ${esc(m.to||activeAccount.email)}<br>${esc(formatFullDate(m.date))}</div><div class="reader-body">${m.html||esc(m.body||'')}</div></article>`
+    activeMessage=m
+    readerPanel.innerHTML=`<article class="reader reader-rich">
+      <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
+      <div class="message-actions">
+        <button type="button" class="message-action-btn" id="replyMessageBtn">Reply</button>
+        <button type="button" class="message-action-btn" id="forwardMessageBtn">Forward</button>
+        <button type="button" class="message-action-btn danger" id="deleteMessageBtn">${activeFolder==='Trash'?'Delete forever':'Delete'}</button>
+      </div>
+      <div class="eyebrow dark">Message</div>
+      <h2>${esc(m.subject||'(No subject)')}</h2>
+      <div class="reader-meta">From: ${esc(m.sender||m.from||'')}<br>To: ${esc(m.to||activeAccount.email)}<br>${esc(formatFullDate(m.date))}</div>
+      <div class="reader-body">${m.html||esc(m.body||'')}</div>
+    </article>`
+    document.getElementById('replyMessageBtn')?.addEventListener('click',()=>openReplyComposer(m))
+    document.getElementById('forwardMessageBtn')?.addEventListener('click',()=>openForwardComposer(m))
+    document.getElementById('deleteMessageBtn')?.addEventListener('click',deleteActiveMessage)
     if(window.matchMedia('(max-width:900px)').matches){
       readerPanel.classList.add('mobile-open')
       readerPanel.scrollTop=0
@@ -77,6 +92,7 @@ async function loadMessage(uid){
 function closeMobileReader(){
   readerPanel?.classList.remove('mobile-open')
   activeMessageId=null
+  activeMessage=null
 }
 function renderReader(){
   if(!readerPanel)return
@@ -84,6 +100,76 @@ function renderReader(){
   readerPanel.innerHTML='<div class="empty-reader"><strong>Select an email</strong><span>Choose a message to read it here.</span></div>'
 }
 function renderComposeAccounts(){if(composeFrom)composeFrom.innerHTML=accounts.map(a=>`<option value="${esc(a.email)}" ${activeAccount?.email===a.email?'selected':''}>${esc(a.email)}</option>`).join('')}
+
+function setComposeValues({to='',subject='',body=''}={}){
+  renderComposeAccounts()
+  if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
+  const toInput=document.getElementById('composeTo')
+  const subjectInput=document.getElementById('composeSubject')
+  const bodyInput=document.getElementById('composeBody')
+  if(toInput)toInput.value=to
+  if(subjectInput)subjectInput.value=subject
+  if(bodyInput)bodyInput.value=body
+  composeModal?.classList.remove('hidden')
+  closeMobileMenu()
+  setTimeout(()=>bodyInput?.focus(),50)
+}
+function replySubject(subject=''){
+  return /^re:/i.test(subject)?subject:`Re: ${subject||'(No subject)'}`
+}
+function forwardSubject(subject=''){
+  return /^fwd:/i.test(subject)?subject:`Fwd: ${subject||'(No subject)'}`
+}
+function quotedText(message){
+  const original=String(message.body||'').trim()
+  const date=formatFullDate(message.date)
+  const header=`\n\nOn ${date||'an earlier date'}, ${message.from||message.sender||'the sender'} wrote:\n`
+  if(!original)return header
+  return header+original.split('\n').map(line=>`> ${line}`).join('\n')
+}
+function openReplyComposer(message){
+  setComposeValues({
+    to:message.from||'',
+    subject:replySubject(message.subject),
+    body:quotedText(message)
+  })
+}
+function openForwardComposer(message){
+  const original=String(message.body||'').trim()
+  const forwarded=[
+    '',
+    '',
+    '---------- Forwarded message ---------',
+    `From: ${message.from||message.sender||''}`,
+    `Date: ${formatFullDate(message.date)}`,
+    `Subject: ${message.subject||'(No subject)'}`,
+    `To: ${message.to||activeAccount?.email||''}`,
+    '',
+    original
+  ].join('\n')
+  setComposeValues({
+    to:'',
+    subject:forwardSubject(message.subject),
+    body:forwarded
+  })
+}
+async function deleteActiveMessage(){
+  if(!activeMessageId||!activeAccount)return
+  const permanent=activeFolder==='Trash'
+  if(!confirm(permanent?'Permanently delete this email? This cannot be undone.':'Move this email to Trash?'))return
+  const button=document.getElementById('deleteMessageBtn')
+  if(button){button.disabled=true;button.textContent=permanent?'Deleting…':'Moving…'}
+  try{
+    await callMailFunction({action:'delete',folder:activeFolder,uid:activeMessageId,mailbox_email:activeAccount.email})
+    closeMobileReader()
+    renderReader()
+    await loadMessages()
+  }catch(error){
+    alert(error.message||'Unable to delete email.')
+    if(button){button.disabled=false;button.textContent=permanent?'Delete forever':'Delete'}
+  }
+}
+
 function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]))}
 function formatDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString([],{month:'short',day:'numeric'})}
 function formatFullDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString()}
