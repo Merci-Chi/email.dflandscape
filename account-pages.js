@@ -18,6 +18,100 @@ if(location.pathname.endsWith('/manage-emails.html')&&!canManageEmails){location
 const accountList=document.getElementById('accountList')
 if(accountList)accountList.innerHTML=`<a class="account-btn active" href="mail.html" style="text-decoration:none"><span class="account-copy"><strong>${esc(displayName)}</strong><span>${esc(email)}</span></span></a>`
 
+
+const settingsEmail=document.getElementById('settingsEmail')
+const settingsDisplayName=document.getElementById('settingsDisplayName')
+const profileForm=document.getElementById('profileForm')
+const passwordForm=document.getElementById('passwordForm')
+const signatureForm=document.getElementById('signatureForm')
+const signatureMailbox=document.getElementById('signatureMailbox')
+const signatureText=document.getElementById('signatureText')
+
+async function loadSettingsMailboxes(){
+  if(!signatureMailbox)return
+  try{
+    const {data:{session:s}}=await supabase.auth.getSession()
+    const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':`Bearer ${s.access_token}`,
+        'apikey':SUPABASE_PUBLISHABLE_KEY
+      },
+      body:JSON.stringify({action:'mailboxes'})
+    })
+    const result=await res.json()
+    const mailboxes=(result?.data||[]).filter(v=>String(v).toLowerCase().endsWith('@dflandscape.com'))
+    signatureMailbox.innerHTML=mailboxes.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('')
+    loadSelectedSignature()
+  }catch(error){
+    console.error('Unable to load signature mailboxes',error)
+    signatureMailbox.innerHTML=`<option value="${esc(email)}">${esc(email)}</option>`
+    loadSelectedSignature()
+  }
+}
+
+function currentSignatures(){
+  const value=user.user_metadata?.email_signatures
+  return value&&typeof value==='object'&&!Array.isArray(value)?{...value}:{}
+}
+
+function loadSelectedSignature(){
+  if(!signatureMailbox||!signatureText)return
+  const signatures=currentSignatures()
+  signatureText.value=String(signatures[signatureMailbox.value]||'')
+}
+
+if(settingsEmail)settingsEmail.value=email
+if(settingsDisplayName)settingsDisplayName.value=displayName
+
+profileForm?.addEventListener('submit',async e=>{
+  e.preventDefault()
+  const msg=document.getElementById('profileMessage')
+  const nextName=settingsDisplayName.value.trim()
+  if(!nextName){msg.textContent='Enter a display name.';return}
+  msg.textContent='Saving…'
+  const {data,error}=await supabase.auth.updateUser({data:{display_name:nextName}})
+  if(error){msg.textContent=error.message||'Unable to save profile.';return}
+  if(data?.user)Object.assign(user,data.user)
+  msg.textContent='Profile saved.'
+  msg.classList.add('success')
+})
+
+passwordForm?.addEventListener('submit',async e=>{
+  e.preventDefault()
+  const msg=document.getElementById('passwordMessage')
+  const password=document.getElementById('settingsPassword').value
+  const confirmPassword=document.getElementById('settingsPasswordConfirm').value
+  if(password.length<8){msg.textContent='Use at least 8 characters.';return}
+  if(password!==confirmPassword){msg.textContent='Passwords do not match.';return}
+  msg.textContent='Updating…'
+  const {error}=await supabase.auth.updateUser({password})
+  if(error){msg.textContent=error.message||'Unable to update password.';return}
+  e.currentTarget.reset()
+  msg.textContent='Password updated.'
+  msg.classList.add('success')
+})
+
+signatureMailbox?.addEventListener('change',loadSelectedSignature)
+
+signatureForm?.addEventListener('submit',async e=>{
+  e.preventDefault()
+  const msg=document.getElementById('signatureMessage')
+  const mailbox=signatureMailbox.value
+  if(!mailbox){msg.textContent='Choose a mailbox.';return}
+  const signatures=currentSignatures()
+  signatures[mailbox]=signatureText.value.trim()
+  msg.textContent='Saving…'
+  const {data,error}=await supabase.auth.updateUser({data:{email_signatures:signatures}})
+  if(error){msg.textContent=error.message||'Unable to save signature.';return}
+  if(data?.user)Object.assign(user,data.user)
+  msg.textContent='Signature saved.'
+  msg.classList.add('success')
+})
+
+if(signatureMailbox)loadSettingsMailboxes()
+
 let adminState={users:[],mailboxes:[]}
 async function adminApi(action,payload={}){
   const {data,error}=await supabase.functions.invoke('manage-email-users',{body:{action,...payload}})
