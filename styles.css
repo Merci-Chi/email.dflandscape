@@ -406,3 +406,38 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .message-actions{overflow-x:auto;flex-wrap:nowrap;padding-bottom:8px;-webkit-overflow-scrolling:touch}
   .message-action-btn{flex:0 0 auto;min-width:auto}
 }
+
+
+/* Batch 2 selection + swipe actions */
+.bulk-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line);background:#f7faf7;position:sticky;top:0;z-index:8}
+.bulk-toolbar[hidden]{display:none!important}
+.bulk-toolbar strong{font-size:12px;color:#29402f;margin-right:2px}
+.bulk-toolbar button{border:1px solid #ccd6cc;background:#fff;color:#29402f;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:800}
+.bulk-toolbar button:hover{background:#eef3ee}
+.bulk-toolbar button.danger{color:#8d342e;border-color:#dfc2bf}
+.bulk-close{font-size:18px!important;line-height:1;padding:6px 10px!important}
+.bulk-actions{display:flex;gap:6px;flex-wrap:wrap}
+.bulk-toolbar button:disabled{opacity:.55;cursor:wait}
+
+.message-swipe-shell{position:relative;overflow:hidden;background:#fff}
+.swipe-action{position:absolute;top:0;bottom:0;width:88px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;z-index:0}
+.swipe-action-read{left:0;background:#476b4f}
+.swipe-action-delete{right:0;background:#9b3e36}
+.message-row-wrap{position:relative;z-index:1;transition:transform .18s ease;background:#fff;grid-template-columns:0 38px minmax(0,1fr)}
+.message-row-wrap.selected{background:#edf4ee}
+.message-row-wrap.selected .message-row{background:#edf4ee}
+.message-select{width:0;overflow:hidden;padding:0;border:0;background:transparent;display:grid;place-items:center;transition:width .15s ease}
+.message-select.show{width:38px}
+.selection-dot{width:21px;height:21px;border:1.5px solid #91a091;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:900;color:#fff}
+.message-row-wrap.selected .selection-dot{background:#31573a;border-color:#31573a}
+@media(hover:hover) and (pointer:fine){
+  .message-row-wrap:hover .message-select{width:38px}
+}
+@media(max-width:650px){
+  .bulk-toolbar{top:64px;position:sticky;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  .bulk-actions{flex-wrap:nowrap}
+  .bulk-toolbar button{flex:0 0 auto}
+  .message-row-wrap{grid-template-columns:0 40px minmax(0,1fr)}
+  .message-select.show{width:40px}
+  .message-swipe-shell{touch-action:pan-y}
+}
