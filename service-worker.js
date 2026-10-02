@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dfl-email-no-stale-pages-1'
+const CACHE_NAME = 'dfl-email-mobile-actions-grid-2'
 const APP_SHELL = [
   '/styles.css',
   '/app.js',
