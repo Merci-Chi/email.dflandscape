@@ -278,3 +278,53 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
 
 /* Always fully hide permission-gated UI */
 [hidden]{display:none!important}
+
+
+/* Mobile slide-out mailbox menu */
+.mobile-menu-btn,.mobile-sidebar-head{display:none}
+.mobile-menu-overlay{display:none}
+@media(max-width:650px){
+  .mobile-menu-btn{
+    display:inline-flex;flex-direction:column;justify-content:center;align-items:center;
+    width:40px;height:40px;padding:0;border:0;border-radius:9px;background:transparent;color:#fff;
+    flex:0 0 auto;gap:4px
+  }
+  .mobile-menu-btn span{display:block;width:20px;height:2px;border-radius:999px;background:currentColor}
+  .mobile-menu-btn:active{background:rgba(255,255,255,.1)}
+  .topbar-left{gap:6px}
+  .mobile-sidebar-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:2px 2px 14px;margin-bottom:4px;border-bottom:1px solid var(--line);
+    color:#173622
+  }
+  .mobile-sidebar-head strong{font-size:15px}
+  .mobile-menu-close{
+    width:36px;height:36px;border:0;border-radius:9px;background:#edf2ed;color:#173622;
+    font-size:27px;line-height:1;display:grid;place-items:center
+  }
+  .mail-shell{position:relative;overflow:hidden}
+  .sidebar{
+    display:flex!important;position:fixed;z-index:60;left:0;top:64px;bottom:0;
+    width:min(86vw,320px);max-width:320px;padding:14px;background:#f7f9f7;
+    border-right:1px solid var(--line);box-shadow:14px 0 36px rgba(8,23,13,.18);
+    transform:translateX(-105%);transition:transform .22s ease;visibility:hidden;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding-bottom:max(18px,env(safe-area-inset-bottom))
+  }
+  .sidebar.mobile-open{transform:translateX(0);visibility:visible}
+  .mobile-menu-overlay{
+    display:block;position:fixed;z-index:55;inset:64px 0 0;
+    background:rgba(7,17,10,.42);opacity:0;transition:opacity .18s ease
+  }
+  .mobile-menu-overlay.show{opacity:1}
+  .mobile-menu-overlay[hidden]{display:none!important}
+  body.mobile-menu-open{overflow:hidden}
+  .sidebar .utility-nav{margin-top:auto}
+  .sidebar .compose{min-height:46px}
+  .sidebar .account-btn,.sidebar .folder,.sidebar .utility-link{min-height:44px}
+  .mail-page .inbox-panel,.mail-page .reader-panel{min-width:0}
+  .inbox-panel{width:100%}
+  .inbox-head{gap:10px}
+  .message-list{-webkit-overflow-scrolling:touch}
+  .message-row{min-height:64px}
+}
