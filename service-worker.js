@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dfl-email-selected-message-url-1'
+const CACHE_NAME = 'dfl-email-speed-20-1'
 const APP_SHELL = [
   '/',
   '/index.html',
