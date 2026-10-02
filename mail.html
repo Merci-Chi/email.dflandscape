@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#0f2617">
   <title>Desert Forest Landscape Mailbox</title>
-  <link rel="stylesheet" href="styles.css?v=batch2-mail-2">
+  <link rel="stylesheet" href="styles.css?v=batch3-compose-1">
 </head>
 <body class="mail-page">
   <header class="topbar">
@@ -170,9 +170,25 @@
         <button type="button" id="closeCompose" aria-label="Close">×</button>
       </div>
       <label>From<select id="composeFrom"></select></label>
-      <label>To<input type="email" id="composeTo" multiple required></label>
+      <div class="recipient-field">
+        <label>To<input type="text" id="composeTo" autocomplete="off" placeholder="name@example.com, another@example.com" required></label>
+        <div class="recipient-suggestions" id="toSuggestions" hidden></div>
+      </div>
+      <div class="compose-recipient-toggle">
+        <button type="button" id="showCcBtn">Cc</button>
+        <button type="button" id="showBccBtn">Bcc</button>
+      </div>
+      <div class="recipient-field compose-extra-recipient hidden" id="ccRow">
+        <label>Cc<input type="text" id="composeCc" autocomplete="off" placeholder="Optional"></label>
+        <div class="recipient-suggestions" id="ccSuggestions" hidden></div>
+      </div>
+      <div class="recipient-field compose-extra-recipient hidden" id="bccRow">
+        <label>Bcc<input type="text" id="composeBcc" autocomplete="off" placeholder="Optional"></label>
+        <div class="recipient-suggestions" id="bccSuggestions" hidden></div>
+      </div>
       <label>Subject<input type="text" id="composeSubject"></label>
       <textarea id="composeBody" placeholder="Write your message..."></textarea>
+      <div class="compose-draft-note" id="composeDraftNote" aria-live="polite"></div>
       <div class="compose-actions">
         <span id="composeStatus"></span>
         <button type="submit">Send</button>
@@ -180,7 +196,7 @@
     </form>
   </div>
 
-  <script type="module" src="mail.js?v=batch2-mail-2"></script>
+  <script type="module" src="mail.js?v=batch3-compose-1"></script>
   <script src="update-manager.js?v=1" defer></script>
 </body>
 </html>
