@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#0f2617">
   <title>Desert Forest Landscape Mailbox</title>
-  <link rel="stylesheet" href="styles.css?v=batch8-noschedule-1">
+  <link rel="stylesheet" href="styles.css?v=selection-search-1">
 </head>
 <body class="mail-page">
   <header class="topbar">
@@ -142,6 +142,10 @@
           <p id="mailboxAddress"></p>
         </div>
         <div class="inbox-actions">
+          <button id="headerSelectAllBtn" class="header-select-all" type="button">
+            <span class="header-select-circle" aria-hidden="true"></span>
+            <span>Select all</span>
+          </button>
           <select id="mailSort" class="mail-sort" aria-label="Sort messages">
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -257,7 +261,7 @@
     </div>
   </div>
 
-  <script type="module" src="mail.js?v=batch8-noschedule-1"></script>
+  <script type="module" src="mail.js?v=selection-search-1"></script>
   <script src="update-manager.js?v=1" defer></script>
 </body>
 </html>
