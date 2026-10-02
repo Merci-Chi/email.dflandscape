@@ -9,6 +9,21 @@ const {data:{session}}=await supabase.auth.getSession()
 if(!session?.user){location.replace('index.html');throw new Error('Not authenticated')}
 
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
+const OPEN_MESSAGE_KEY=`dfl_open_message_v1:${session.user.id}`
+function saveOpenMessage(){
+  if(!activeAccount||!activeMessageId)return
+  sessionStorage.setItem(OPEN_MESSAGE_KEY,JSON.stringify({
+    mailbox:activeAccount.email,
+    folder:activeMessage?.sourceFolder||messageFolder(activeMessageId)||activeFolder,
+    uid:String(activeMessageId)
+  }))
+}
+function clearOpenMessage(){
+  sessionStorage.removeItem(OPEN_MESSAGE_KEY)
+}
+function getSavedOpenMessage(){
+  try{return JSON.parse(sessionStorage.getItem(OPEN_MESSAGE_KEY)||'null')}catch{return null}
+}
 let selectedIds=new Set(),selectionMode=false,longPressTimer=null
 let mailPage=0,mailPageSize=50,mailHasMore=false,mailLoading=false,searchTimer=null,pendingMailReload=false
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
@@ -348,19 +363,34 @@ function startBackgroundMailChecks(){
 }
 async function applyLaunchTarget(){
   const params=new URLSearchParams(location.search)
-  const mailbox=params.get('mailbox')
-  const folder=params.get('folder')
-  const uid=params.get('uid')
+  const saved=getSavedOpenMessage()
+  const mailbox=params.get('mailbox')||saved?.mailbox||''
+  const folder=params.get('folder')||saved?.folder||'Inbox'
+  const uid=params.get('uid')||saved?.uid||''
+
   if(mailbox){
-    const match=accounts.find(a=>a.email.toLowerCase()===mailbox.toLowerCase())
+    const match=accounts.find(a=>a.email.toLowerCase()===String(mailbox).toLowerCase())
     if(match)activeAccount=match
   }
-  if(folder)activeFolder=folder
+
+  activeFolder=folder||'Inbox'
   renderAccounts()
   document.querySelectorAll('.folder').forEach(btn=>btn.classList.toggle('active',(btn.dataset.folder||'Inbox')===activeFolder))
+
   if(activeAccount)await loadMessages({reset:true})
-  if(uid&&activeAccount)await loadMessage(uid)
-  if(mailbox||folder||uid)history.replaceState({},'',location.pathname)
+
+  if(uid&&activeAccount){
+    try{
+      await loadMessage(uid)
+    }catch{
+      clearOpenMessage()
+      activeMessageId=null
+      activeMessage=null
+      renderReader()
+    }
+  }
+
+  if(params.get('mailbox')||params.get('folder')||params.get('uid'))history.replaceState({},'',location.pathname)
 }
 
 async function loadAdminVisibility(){
@@ -402,7 +432,7 @@ function renderAccounts(){
   if(!accountList)return
   if(!accounts.length){accountList.innerHTML='<div class="no-access">No mailbox access.</div>';return}
   accountList.innerHTML=accounts.map(a=>`<button class="account-btn ${activeAccount?.email===a.email?'active':''}" data-email="${esc(a.email)}"><span class="account-copy"><strong>${esc(a.name)}</strong><span>${esc(a.email)}</span></span></button>`).join('')
-  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;renderAccounts();renderComposeAccounts();await loadMessages({reset:true});renderReader();closeMobileMenu()})
+  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;activeMessage=null;clearOpenMessage();renderAccounts();renderComposeAccounts();await loadMessages({reset:true});renderReader();closeMobileMenu()})
 }
 async function loadMessages({reset=true}={}){
   if(!activeAccount)return
@@ -867,6 +897,7 @@ async function loadMessage(uid){
     const m=await callMailFunction({action:'get',folder:sourceFolder,uid,mailbox_email:activeAccount.email})
     m.sourceFolder=sourceFolder
     activeMessage=m
+    saveOpenMessage()
     const threadMessages=await loadThreadConversation(m)
     readerPanel.innerHTML=`<article class="reader reader-rich">
       <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
@@ -938,6 +969,7 @@ function closeMobileReader(){
   readerPanel?.classList.remove('mobile-open')
   activeMessageId=null
   activeMessage=null
+  clearOpenMessage()
 }
 function renderReader(){
   if(!readerPanel)return
@@ -1288,6 +1320,9 @@ async function refreshMailboxKeepingSelection(){
 
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{
   activeFolder=btn.dataset.folder||'Inbox'
+  activeMessageId=null
+  activeMessage=null
+  clearOpenMessage()
   selectedIds.clear();selectionMode=false
   document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn))
   if(mailFilter)mailFilter.value='all'
