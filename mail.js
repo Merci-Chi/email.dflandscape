@@ -56,8 +56,17 @@ async function loadMessages(){
 function renderMessages(){
   const q=(searchInput?.value||'').trim().toLowerCase()
   const msgs=currentMessages.filter(m=>!q||`${m.sender} ${m.from} ${m.subject}`.toLowerCase().includes(q))
-  messageList.innerHTML=msgs.length?msgs.map(m=>`<button class="message-row" data-id="${esc(m.uid)}"><span class="sender">${esc(m.sender||m.from)}</span><span class="time">${esc(formatDate(m.date))}</span><span class="subject">${esc(m.subject||'(No subject)')}</span><span class="snippet">${esc(m.from||'')}</span></button>`).join(''):'<div class="empty-reader" style="height:220px"><strong>No messages</strong><span>This folder is empty.</span></div>'
+  messageList.innerHTML=msgs.length?msgs.map(m=>`<div class="message-row-wrap ${m.seen===false?'unread':''}">
+    <button class="message-star ${m.flagged?'active':''}" data-star-id="${esc(m.uid)}" type="button" aria-label="${m.flagged?'Unstar':'Star'} message">★</button>
+    <button class="message-row ${m.seen===false?'unread':''}" data-id="${esc(m.uid)}">
+      <span class="sender">${esc(m.sender||m.from)}</span>
+      <span class="time">${esc(formatDate(m.date))}</span>
+      <span class="subject">${esc(m.subject||'(No subject)')}</span>
+      <span class="snippet">${esc(m.from||'')}</span>
+    </button>
+  </div>`).join(''):'<div class="empty-reader" style="height:220px"><strong>No messages</strong><span>This folder is empty.</span></div>'
   messageList.querySelectorAll('[data-id]').forEach(r=>r.onclick=()=>loadMessage(r.dataset.id))
+  messageList.querySelectorAll('[data-star-id]').forEach(btn=>btn.onclick=async e=>{e.stopPropagation();await toggleMessageFlag(btn.dataset.starId)})
 }
 async function loadMessage(uid){
   try{
@@ -68,7 +77,11 @@ async function loadMessage(uid){
       <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
       <div class="message-actions">
         <button type="button" class="message-action-btn" id="replyMessageBtn">Reply</button>
+        <button type="button" class="message-action-btn" id="replyAllMessageBtn">Reply all</button>
         <button type="button" class="message-action-btn" id="forwardMessageBtn">Forward</button>
+        <button type="button" class="message-action-btn" id="readMessageBtn">${m.seen===false?'Mark read':'Mark unread'}</button>
+        <button type="button" class="message-action-btn" id="starMessageBtn">${m.flagged?'Unstar':'Star'}</button>
+        ${activeFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn">Archive</button>':''}
         <button type="button" class="message-action-btn danger" id="deleteMessageBtn">${activeFolder==='Trash'?'Delete forever':'Delete'}</button>
       </div>
       <div class="eyebrow dark">Message</div>
@@ -77,8 +90,17 @@ async function loadMessage(uid){
       <div class="reader-body">${m.html||esc(m.body||'')}</div>
     </article>`
     document.getElementById('replyMessageBtn')?.addEventListener('click',()=>openReplyComposer(m))
+    document.getElementById('replyAllMessageBtn')?.addEventListener('click',()=>openReplyAllComposer(m))
     document.getElementById('forwardMessageBtn')?.addEventListener('click',()=>openForwardComposer(m))
+    document.getElementById('readMessageBtn')?.addEventListener('click',()=>toggleActiveReadState())
+    document.getElementById('starMessageBtn')?.addEventListener('click',()=>toggleActiveStar())
+    document.getElementById('archiveMessageBtn')?.addEventListener('click',archiveActiveMessage)
     document.getElementById('deleteMessageBtn')?.addEventListener('click',deleteActiveMessage)
+    if(m.seen===false){
+      callMailFunction({action:'mark_read',folder:activeFolder,uid,mailbox_email:activeAccount.email}).then(()=>{
+        const row=currentMessages.find(x=>String(x.uid)===String(uid));if(row)row.seen=true;renderMessages()
+      }).catch(()=>{})
+    }
     if(window.matchMedia('(max-width:900px)').matches){
       readerPanel.classList.add('mobile-open')
       readerPanel.scrollTop=0
@@ -127,9 +149,26 @@ function quotedText(message){
   if(!original)return header
   return header+original.split('\n').map(line=>`> ${line}`).join('\n')
 }
+function cleanAddressList(value=''){
+  return String(value).split(',').map(v=>v.trim()).filter(Boolean)
+}
 function openReplyComposer(message){
   setComposeValues({
-    to:message.from||'',
+    to:message.replyTo||message.from||'',
+    subject:replySubject(message.subject),
+    body:quotedText(message)
+  })
+}
+function openReplyAllComposer(message){
+  const own=(activeAccount?.email||'').toLowerCase()
+  const candidates=[
+    message.replyTo||message.from||'',
+    ...cleanAddressList(message.to),
+    ...cleanAddressList(message.cc)
+  ]
+  const unique=[...new Set(candidates.map(v=>v.trim()).filter(v=>v&&v.toLowerCase()!==own))]
+  setComposeValues({
+    to:unique.join(', '),
     subject:replySubject(message.subject),
     body:quotedText(message)
   })
@@ -153,6 +192,56 @@ function openForwardComposer(message){
     body:forwarded
   })
 }
+
+async function setMessageState(action,uid=activeMessageId){
+  if(!uid||!activeAccount)return
+  await callMailFunction({action,folder:activeFolder,uid,mailbox_email:activeAccount.email})
+}
+async function toggleMessageFlag(uid){
+  const row=currentMessages.find(x=>String(x.uid)===String(uid))
+  const next=!(row?.flagged===true)
+  try{
+    await setMessageState(next?'star':'unstar',uid)
+    if(row)row.flagged=next
+    if(activeMessage&&String(activeMessage.uid)===String(uid))activeMessage.flagged=next
+    renderMessages()
+  }catch(error){alert(error.message||'Unable to update star.')}
+}
+async function toggleActiveStar(){
+  if(!activeMessage)return
+  const next=!activeMessage.flagged
+  try{
+    await setMessageState(next?'star':'unstar')
+    activeMessage.flagged=next
+    const row=currentMessages.find(x=>String(x.uid)===String(activeMessageId));if(row)row.flagged=next
+    const btn=document.getElementById('starMessageBtn');if(btn)btn.textContent=next?'Unstar':'Star'
+    renderMessages()
+  }catch(error){alert(error.message||'Unable to update star.')}
+}
+async function toggleActiveReadState(){
+  if(!activeMessage)return
+  const markRead=activeMessage.seen===false
+  try{
+    await setMessageState(markRead?'mark_read':'mark_unread')
+    activeMessage.seen=markRead
+    const row=currentMessages.find(x=>String(x.uid)===String(activeMessageId));if(row)row.seen=markRead
+    const btn=document.getElementById('readMessageBtn');if(btn)btn.textContent=markRead?'Mark unread':'Mark read'
+    renderMessages()
+  }catch(error){alert(error.message||'Unable to update read status.')}
+}
+async function archiveActiveMessage(){
+  if(!activeMessageId||!activeAccount)return
+  const btn=document.getElementById('archiveMessageBtn')
+  if(btn){btn.disabled=true;btn.textContent='Archiving…'}
+  try{
+    await setMessageState('archive')
+    closeMobileReader();renderReader();await loadMessages()
+  }catch(error){
+    alert(error.message||'Unable to archive email.')
+    if(btn){btn.disabled=false;btn.textContent='Archive'}
+  }
+}
+
 async function deleteActiveMessage(){
   if(!activeMessageId||!activeAccount)return
   const permanent=activeFolder==='Trash'
