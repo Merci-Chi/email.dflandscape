@@ -433,7 +433,7 @@ async function loadMessages({reset=true}={}){
       action:'list',
       folder:activeFolder,
       mailbox_email:activeAccount.email,
-      query:(searchInput?.value||'').trim(),
+      query:'',
       page:mailPage,
       page_size:mailPageSize,
       sort:mailSort?.value||'newest'
@@ -472,9 +472,22 @@ async function loadMessages({reset=true}={}){
 function updateLoadMore(){
   if(loadMoreWrap)loadMoreWrap.hidden=!mailHasMore
 }
+function messageMatchesSearch(message){
+  const raw=(searchInput?.value||'').trim()
+  if(!raw)return true
+  const q=raw.toLowerCase()
+  return [
+    message.sender,
+    message.from,
+    message.to,
+    message.cc,
+    message.subject
+  ].some(value=>String(value||'').toLowerCase().includes(q))
+}
 function filteredMessages(){
   const filter=mailFilter?.value||'all'
   return currentMessages.filter(m=>{
+    if(!messageMatchesSearch(m))return false
     if(activeFolder==='Starred'&&m.flagged!==true)return false
     if(activeAccount&&snoozedMessageKeys.has(snoozedKey(activeAccount.email,m.sourceFolder||activeFolder,m.uid)))return false
     if(filter==='unread'&&m.seen!==false)return false
@@ -491,35 +504,25 @@ function searchMatchInfo(message){
   const subject=String(message.subject||'')
   if(subject.toLowerCase().includes(q))return {where:'subject',value:subject}
 
-  const from=String(message.from||message.sender||'')
+  const sender=String(message.sender||'')
+  const from=String(message.from||'')
+  if(sender.toLowerCase().includes(q))return {where:'sender',value:sender}
+  if(from.toLowerCase().includes(q))return {where:'email',value:from}
+
   const to=String(message.to||'')
+  if(to.toLowerCase().includes(q))return {where:'recipient',value:to}
+
   const cc=String(message.cc||'')
-  const emailFields=[from,to,cc].filter(Boolean)
-  const emailHit=emailFields.find(value=>value.toLowerCase().includes(q))
+  if(cc.toLowerCase().includes(q))return {where:'recipient',value:cc}
 
-  if(emailHit){
-    const angle=emailHit.match(/^(.*?)<([^>]+)>/)
-    if(angle){
-      const name=angle[1].trim().replace(/^[\"']|[\"']$/g,'')
-      const address=angle[2].trim()
-      if(name&&name.toLowerCase().includes(q))return {where:'sender',value:name}
-      if(address.toLowerCase().includes(q))return {where:'email',value:address}
-    }
-    return {where:'email',value:emailHit}
-  }
-
-  const snippet=String(message.snippet||'')
-  if(snippet.toLowerCase().includes(q))return {where:'preview',value:snippet}
-
-  return {where:'message data',value:''}
+  return null
 }
 
 function searchMatchLabel(message){
   const match=searchMatchInfo(message)
   if(!match)return ''
   const raw=(searchInput?.value||'').trim()
-  const suffix=match.value?': '+match.value:''
-  return '<span class="search-match-note">“'+esc(raw)+'” found in '+esc(match.where)+esc(suffix)+'</span>'
+  return '<span class="search-match-note">“'+esc(raw)+'” found in '+esc(match.where)+': '+esc(match.value)+'</span>'
 }
 function groupedMessages(){
   const msgs=filteredMessages()
@@ -1164,7 +1167,10 @@ function formatDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.
 function formatFullDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString()}
 searchInput?.addEventListener('input',()=>{
   clearTimeout(searchTimer)
-  loadMessages({reset:true})
+  selectedIds.clear()
+  selectionMode=false
+  renderMessages()
+  updateLoadMore()
 })
 mailFilter?.addEventListener('change',renderMessages)
 mailSort?.addEventListener('change',()=>loadMessages({reset:true}))
