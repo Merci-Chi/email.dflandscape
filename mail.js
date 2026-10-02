@@ -1107,17 +1107,17 @@ function renderLoadedMessage(message,threadMessages=[message],{preserveScroll=fa
     <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
     <div class="message-actions">
       <div class="message-action-row message-action-row-primary">
-        <button type="button" class="message-action-btn" id="replyMessageBtn" aria-label="Reply" title="Reply"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a6 6 0 0 0-6-6H4"/></svg><span>Reply</span></button>
-        <button type="button" class="message-action-btn" id="replyAllMessageBtn" aria-label="Reply all" title="Reply all"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 17-5-5 5-5"/><path d="m12 17-5-5 5-5"/><path d="M22 18v-2a6 6 0 0 0-6-6H7"/></svg><span>Reply all</span></button>
-        <button type="button" class="message-action-btn" id="forwardMessageBtn" aria-label="Forward" title="Forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 17 5-5-5-5"/><path d="M4 18v-2a6 6 0 0 1 6-6h10"/></svg><span>Forward</span></button>
-        <button type="button" class="message-action-btn" id="readMessageBtn" aria-label="${message.seen===false?'Mark read':'Mark unread'}" title="${message.seen===false?'Mark read':'Mark unread'}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg><span>${message.seen===false?'Mark read':'Mark unread'}</span></button>
-        <button type="button" class="message-action-btn" id="starMessageBtn" aria-label="${message.flagged?'Unstar':'Star'}" title="${message.flagged?'Unstar':'Star'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3z"/></svg><span>${message.flagged?'Unstar':'Star'}</span></button>
+        <button type="button" class="message-action-btn" id="replyMessageBtn" aria-label="Reply" title="Reply"><i data-lucide="reply"></i><span>Reply</span></button>
+        <button type="button" class="message-action-btn" id="replyAllMessageBtn" aria-label="Reply all" title="Reply all"><i data-lucide="reply-all"></i><span>Reply all</span></button>
+        <button type="button" class="message-action-btn" id="forwardMessageBtn" aria-label="Forward" title="Forward"><i data-lucide="forward"></i><span>Forward</span></button>
+        <button type="button" class="message-action-btn" id="readMessageBtn" aria-label="${message.seen===false?'Mark read':'Mark unread'}" title="${message.seen===false?'Mark read':'Mark unread'}"><i data-lucide="${message.seen===false?'mail-open':'mail'}"></i><span>${message.seen===false?'Mark read':'Mark unread'}</span></button>
+        <button type="button" class="message-action-btn" id="starMessageBtn" aria-label="${message.flagged?'Unstar':'Star'}" title="${message.flagged?'Unstar':'Star'}"><i data-lucide="star"></i><span>${message.flagged?'Unstar':'Star'}</span></button>
       </div>
       <div class="message-action-row message-action-row-secondary">
-        ${sourceFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn" aria-label="Archive" title="Archive"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3z"/><path d="M9 11h6"/></svg><span>Archive</span></button>':''}
-        ${sourceFolder!=='Junk'?'<button type="button" class="message-action-btn" id="spamMessageBtn" aria-label="Spam" title="Spam"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V6l-8-3z"/><path d="M12 8v5"/><path d="M12 17h.01"/></svg><span>Spam</span></button>':''}
+        ${sourceFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn" aria-label="Archive" title="Archive"><i data-lucide="archive"></i><span>Archive</span></button>':''}
+        ${sourceFolder!=='Junk'?'<button type="button" class="message-action-btn" id="spamMessageBtn" aria-label="Spam" title="Spam"><i data-lucide="shield-alert"></i><span>Spam</span></button>':''}
         <span class="message-action-divider" aria-hidden="true"></span>
-        <button type="button" class="message-action-btn danger" id="deleteMessageBtn" aria-label="${sourceFolder==='Trash'?'Delete forever':'Delete'}" title="${sourceFolder==='Trash'?'Delete forever':'Delete'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m7 7 1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></svg><span>${sourceFolder==='Trash'?'Delete forever':'Delete'}</span></button>
+        <button type="button" class="message-action-btn danger" id="deleteMessageBtn" aria-label="${sourceFolder==='Trash'?'Delete forever':'Delete'}" title="${sourceFolder==='Trash'?'Delete forever':'Delete'}"><i data-lucide="trash-2"></i><span>${sourceFolder==='Trash'?'Delete forever':'Delete'}</span></button>
       </div>
     </div>
     <div class="eyebrow dark">Message</div>
@@ -1126,6 +1126,7 @@ function renderLoadedMessage(message,threadMessages=[message],{preserveScroll=fa
     ${renderThreadConversation(threadMessages,message)}
     ${renderMessageAttachments(message)}
   </article>`
+  window.lucide?.createIcons();
   wireReaderActions(message,sourceFolder)
   if(window.matchMedia('(max-width:900px)').matches)readerPanel.classList.add('mobile-open')
   readerPanel.scrollTop=preserveScroll?previousScroll:0
