@@ -20,11 +20,165 @@ let composeDirty=false,draftSaveTimer=null,composeOpenedFromDraft=false,composeM
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
 const manageEmailsLink=document.getElementById('manageEmailsLink')
 const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn')
+const networkBanner=document.getElementById('networkBanner')
+const NOTIFY_ENABLED_KEY='dfl_email_notifications_enabled',NOTIFY_SOUND_KEY='dfl_email_notification_sound'
+let backgroundCheckTimer=null
 async function callMailFunction(payload){
   const {data:{session:s}}=await supabase.auth.getSession()
   const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${s.access_token}`,'apikey':SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify(payload)})
   const result=await res.json();if(!res.ok)throw new Error(result.error||'Mail request failed.');return result.data
 }
+
+function mailboxSnapshotKey(mailbox,folder){
+  return `dfl_mail_snapshot_v1:${session.user.id}:${mailbox}:${folder}`
+}
+function saveMailboxSnapshot(){
+  if(!activeAccount||!currentMessages.length)return
+  if((searchInput?.value||'').trim())return
+  try{
+    localStorage.setItem(mailboxSnapshotKey(activeAccount.email,activeFolder),JSON.stringify({
+      messages:currentMessages,
+      hasMore:mailHasMore,
+      savedAt:new Date().toISOString()
+    }))
+  }catch{}
+}
+function restoreMailboxSnapshot(){
+  if(!activeAccount)return false
+  try{
+    const raw=localStorage.getItem(mailboxSnapshotKey(activeAccount.email,activeFolder))
+    if(!raw)return false
+    const cached=JSON.parse(raw)
+    if(!Array.isArray(cached.messages))return false
+    currentMessages=cached.messages
+    mailHasMore=cached.hasMore===true
+    renderMessages()
+    updateLoadMore()
+    return true
+  }catch{return false}
+}
+function updateNetworkBanner(){
+  if(!networkBanner)return
+  networkBanner.hidden=navigator.onLine
+  networkBanner.textContent=navigator.onLine?'':'You’re offline. Showing the last saved mailbox.'
+}
+async function setAppUnreadBadge(total){
+  try{
+    if('setAppBadge' in navigator){
+      if(total>0)await navigator.setAppBadge(total)
+      else if('clearAppBadge' in navigator)await navigator.clearAppBadge()
+    }
+  }catch{}
+}
+function notificationsEnabled(){
+  return localStorage.getItem(NOTIFY_ENABLED_KEY)==='true'&&'Notification' in window&&Notification.permission==='granted'
+}
+function playNotificationSound(){
+  if(localStorage.getItem(NOTIFY_SOUND_KEY)==='false')return
+  try{
+    const AudioCtx=window.AudioContext||window.webkitAudioContext
+    if(!AudioCtx)return
+    const ctx=new AudioCtx()
+    const oscillator=ctx.createOscillator()
+    const gain=ctx.createGain()
+    oscillator.frequency.value=760
+    gain.gain.value=.035
+    oscillator.connect(gain)
+    gain.connect(ctx.destination)
+    oscillator.start()
+    oscillator.stop(ctx.currentTime+.12)
+    oscillator.onended=()=>ctx.close().catch(()=>{})
+  }catch{}
+}
+async function showMailNotification(mailbox,message,extraCount=0){
+  if(!notificationsEnabled())return
+  const title=message?.sender||message?.from||'New email'
+  const body=[message?.subject||'(No subject)',extraCount>0?`+${extraCount} more new email${extraCount===1?'':'s'}`:null].filter(Boolean).join(' · ')
+  const url=`/mail.html?mailbox=${encodeURIComponent(mailbox)}&folder=Inbox&uid=${encodeURIComponent(message?.uid||'')}`
+  try{
+    const reg=await navigator.serviceWorker?.ready
+    if(reg){
+      await reg.showNotification(title,{
+        body,
+        icon:'/assets/icon-192x192.png',
+        badge:'/assets/icon-192x192.png',
+        tag:`mail-${mailbox}`,
+        renotify:true,
+        data:{url}
+      })
+    }else{
+      new Notification(title,{body})
+    }
+    playNotificationSound()
+  }catch{}
+}
+async function refreshUnreadBadge(){
+  if(!navigator.onLine||!accounts.length)return
+  let total=0
+  for(const account of accounts){
+    try{
+      const counts=await callMailFunction({action:'counts',mailbox_email:account.email})
+      total+=Number(counts?.Inbox||0)
+    }catch{}
+  }
+  await setAppUnreadBadge(total)
+}
+async function checkForNewMail(){
+  if(!navigator.onLine||!accounts.length)return
+  for(const account of accounts){
+    try{
+      const result=await callMailFunction({
+        action:'list',
+        folder:'Inbox',
+        mailbox_email:account.email,
+        query:'',
+        page:0,
+        page_size:10,
+        sort:'newest'
+      })
+      const messages=Array.isArray(result)?result:(result?.messages||[])
+      if(!messages.length)continue
+      const key=`dfl_recent_mail_uids_v1:${session.user.id}:${account.email}`
+      let previous=[]
+      try{previous=JSON.parse(localStorage.getItem(key)||'[]')}catch{}
+      const previousSet=new Set((previous||[]).map(String))
+      const currentIds=messages.map(m=>String(m.uid))
+      if(previousSet.size){
+        const newlyArrived=messages.filter(m=>!previousSet.has(String(m.uid)))
+        if(newlyArrived.length){
+          await showMailNotification(account.email,newlyArrived[0],Math.max(0,newlyArrived.length-1))
+          if(activeAccount?.email===account.email&&activeFolder==='Inbox'&&!(searchInput?.value||'').trim()){
+            await loadMessages({reset:true})
+          }
+        }
+      }
+      localStorage.setItem(key,JSON.stringify(currentIds))
+    }catch{}
+  }
+  await refreshUnreadBadge()
+}
+function startBackgroundMailChecks(){
+  clearInterval(backgroundCheckTimer)
+  checkForNewMail()
+  backgroundCheckTimer=setInterval(checkForNewMail,60000)
+}
+async function applyLaunchTarget(){
+  const params=new URLSearchParams(location.search)
+  const mailbox=params.get('mailbox')
+  const folder=params.get('folder')
+  const uid=params.get('uid')
+  if(mailbox){
+    const match=accounts.find(a=>a.email.toLowerCase()===mailbox.toLowerCase())
+    if(match)activeAccount=match
+  }
+  if(folder)activeFolder=folder
+  renderAccounts()
+  document.querySelectorAll('.folder').forEach(btn=>btn.classList.toggle('active',(btn.dataset.folder||'Inbox')===activeFolder))
+  if(activeAccount)await loadMessages({reset:true})
+  if(uid&&activeAccount)await loadMessage(uid)
+  if(mailbox||folder||uid)history.replaceState({},'',location.pathname)
+}
+
 async function loadAdminVisibility(){
   if(!manageEmailsLink)return
   try{
@@ -46,7 +200,10 @@ async function loadAccounts(){
   await loadAdminVisibility()
   const emails=await callMailFunction({action:'mailboxes'})
   accounts=(emails||[]).filter(e=>String(e).toLowerCase().endsWith('@dflandscape.com')).map(email=>({email,name:String(email).split('@')[0]}))
-  activeAccount=accounts[0]||null;renderAccounts();renderComposeAccounts();if(activeAccount)await loadMessages()
+  activeAccount=accounts[0]||null
+  renderComposeAccounts()
+  await applyLaunchTarget()
+  startBackgroundMailChecks()
 }
 function renderAccounts(){
   if(!accountList)return
@@ -90,10 +247,15 @@ async function loadMessages({reset=true}={}){
     mailPage+=1
     renderMessages()
     updateLoadMore()
+    if(reset)saveMailboxSnapshot()
+    updateNetworkBanner()
     await loadUnreadCount()
+    await refreshUnreadBadge()
   }catch(e){
     if(reset){
-      messageList.innerHTML=`<div class="empty-reader" style="height:220px"><strong>Unable to load mail</strong><span>${esc(e.message)}</span></div>`
+      const restored=restoreMailboxSnapshot()
+      if(!restored)messageList.innerHTML=`<div class="empty-reader" style="height:220px"><strong>Unable to load mail</strong><span>${esc(e.message)}</span></div>`
+      updateNetworkBanner()
     }else{
       alert(e.message||'Unable to load more mail.')
     }
@@ -959,4 +1121,8 @@ document.addEventListener('touchend',async()=>{
   }
 },{passive:true})
 
+window.addEventListener('online',async()=>{updateNetworkBanner();await loadMessages({reset:true});startBackgroundMailChecks()})
+window.addEventListener('offline',updateNetworkBanner)
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)checkForNewMail()})
+updateNetworkBanner()
 renderReader();await loadAccounts()
