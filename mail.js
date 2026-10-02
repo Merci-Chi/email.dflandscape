@@ -46,7 +46,7 @@ function getSavedOpenMessage(){
   return mailbox||folder||uid?{mailbox,folder,uid}:null
 }
 let selectedIds=new Set(),selectionMode=false,longPressTimer=null
-let mailPage=0,mailPageSize=50,mailHasMore=false,mailLoading=false,searchTimer=null,pendingMailReload=false
+let mailPage=0,mailPageSize=20,mailHasMore=false,mailLoading=false,searchTimer=null,pendingMailReload=false
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),mailFilter=document.getElementById('mailFilter'),mailSort=document.getElementById('mailSort'),loadMoreWrap=document.getElementById('loadMoreWrap'),loadMoreBtn=document.getElementById('loadMoreBtn'),pullRefreshIndicator=document.getElementById('pullRefreshIndicator'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const composeTo=document.getElementById('composeTo'),composeCc=document.getElementById('composeCc'),composeBcc=document.getElementById('composeBcc'),composeSubject=document.getElementById('composeSubject'),composeBody=document.getElementById('composeBody'),composeDraftNote=document.getElementById('composeDraftNote')
@@ -526,9 +526,9 @@ async function loadMessages({reset=true}={}){
       action:'list',
       folder:activeFolder,
       mailbox_email:activeAccount.email,
-      query:'',
+      query:(searchInput?.value||'').trim(),
       page:mailPage,
-      page_size:mailPageSize,
+      page_size:(searchInput?.value||'').trim()?10000:mailPageSize,
       sort:mailSort?.value||'newest'
     })
     const pageMessages=Array.isArray(result)?result:(result?.messages||[])
@@ -563,7 +563,7 @@ async function loadMessages({reset=true}={}){
   }
 }
 function updateLoadMore(){
-  if(loadMoreWrap)loadMoreWrap.hidden=!mailHasMore
+  if(loadMoreWrap)loadMoreWrap.hidden=true
 }
 function messageMatchesSearch(message){
   const raw=(searchInput?.value||'').trim()
@@ -1300,8 +1300,7 @@ searchInput?.addEventListener('input',()=>{
   clearTimeout(searchTimer)
   selectedIds.clear()
   selectionMode=false
-  renderMessages()
-  updateLoadMore()
+  loadMessages({reset:true})
 })
 mailFilter?.addEventListener('change',renderMessages)
 mailSort?.addEventListener('change',()=>loadMessages({reset:true}))
