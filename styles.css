@@ -66,11 +66,11 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
 .folder{border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:7px;color:#596259;font-weight:700}
 .folder.active{background:#edf2ed;color:#16371f}
 .inbox-panel{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
-.inbox-head{padding:18px;border-bottom:1px solid var(--line);display:flex;gap:12px;justify-content:space-between;align-items:flex-end}
+.inbox-head{padding:18px;border-bottom:1px solid var(--line);display:block}
 .inbox-head h1{font-size:24px;margin:2px 0;color:#19311f}
 .inbox-head p{font-size:12px;color:#7d877d;margin:0}
-.inbox-actions{display:flex;align-items:center;gap:7px}
-.inbox-actions input{width:150px;height:38px}
+.inbox-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:12px}
+.inbox-actions input{height:38px;flex:1 1 180px;min-width:160px}
 .inbox-actions button{width:38px;height:38px;border:1px solid #ccd4cc;background:#fff;border-radius:8px;color:#415041;display:inline-flex;align-items:center;justify-content:center}.inbox-actions button svg{width:18px;height:18px;display:block}
 .message-list{overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
 .message-row{width:100%;border:0;border-bottom:1px solid #edf0ed;background:#fff;text-align:left;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:6px 10px}
@@ -423,10 +423,10 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
 .swipe-action{position:absolute;top:0;bottom:0;width:88px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;z-index:0}
 .swipe-action-read{left:0;background:#476b4f}
 .swipe-action-delete{right:0;background:#9b3e36}
-.message-row-wrap{position:relative;z-index:1;transition:transform .18s ease;background:#fff;grid-template-columns:0 38px minmax(0,1fr)}
+.message-row-wrap{position:relative;z-index:1;transition:transform .18s ease;background:#fff;grid-template-columns:38px 38px minmax(0,1fr)}
 .message-row-wrap.selected{background:#edf4ee}
 .message-row-wrap.selected .message-row{background:#edf4ee}
-.message-select{width:0;overflow:hidden;padding:0;border:0;background:transparent;display:grid;place-items:center;transition:width .15s ease}
+.message-select{width:38px;overflow:hidden;padding:0;border:0;background:transparent;display:grid;place-items:center}
 .message-select.show{width:38px}
 .selection-dot{width:21px;height:21px;border:1.5px solid #91a091;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:900;color:#fff}
 .message-row-wrap.selected .selection-dot{background:#31573a;border-color:#31573a}
@@ -434,8 +434,8 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .bulk-toolbar{top:64px;position:sticky;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
   .bulk-actions{flex-wrap:nowrap}
   .bulk-toolbar button{flex:0 0 auto}
-  .message-row-wrap{grid-template-columns:0 40px minmax(0,1fr)}
-  .message-select.show{width:40px}
+  .message-row-wrap{grid-template-columns:40px 40px minmax(0,1fr)}
+  .message-select,.message-select.show{width:40px}
   .message-swipe-shell{touch-action:pan-y}
 }
 
@@ -574,4 +574,16 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .mail-rule-row{align-items:flex-start;flex-direction:column}
   .mail-rule-actions{width:100%;justify-content:space-between}
   .thread-message-head{align-items:flex-start;flex-direction:column;gap:3px}
+}
+
+.header-select-all{width:auto!important;min-width:98px!important;padding:0 11px!important;gap:7px;font-size:12px;font-weight:800}
+.header-select-circle{width:19px;height:19px;border:1.5px solid #91a091;border-radius:50%;display:inline-grid;place-items:center;flex:0 0 auto}
+.header-select-all.active .header-select-circle{background:#31573a;border-color:#31573a;box-shadow:inset 0 0 0 4px #31573a}
+#searchInput{display:block!important}
+@media(max-width:900px){
+  .inbox-actions{align-items:stretch}
+  .header-select-all{order:1}
+  #searchInput{order:1;flex:1 1 180px}
+  #refreshBtn{order:1}
+  .mail-sort,.mail-filter{order:2;flex:1 1 140px}
 }
