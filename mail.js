@@ -567,8 +567,8 @@ function updateBulkToolbar(){
   if(bulkSelectAllBtn)bulkSelectAllBtn.textContent=allSelected?'Clear all':'Select all'
   if(headerSelectAllBtn){
     headerSelectAllBtn.classList.toggle('active',!!allSelected)
-    const label=headerSelectAllBtn.querySelector('span:last-child')
-    if(label)label.textContent=allSelected?'Clear all':'Select all'
+    headerSelectAllBtn.title=allSelected?'Clear all':'Select all'
+    headerSelectAllBtn.setAttribute('aria-label',allSelected?'Clear all':'Select all')
   }
 }
 function attachLongPressHandlers(){
@@ -1121,6 +1121,46 @@ searchInput?.addEventListener('input',()=>{
 })
 mailFilter?.addEventListener('change',renderMessages)
 mailSort?.addEventListener('change',()=>loadMessages({reset:true}))
+
+const sortMenuBtn=document.getElementById('sortMenuBtn')
+const filterMenuBtn=document.getElementById('filterMenuBtn')
+const sortMenu=document.getElementById('sortMenu')
+const filterMenu=document.getElementById('filterMenu')
+
+function closeToolbarMenus(except=null){
+  if(sortMenu&&sortMenu!==except)sortMenu.hidden=true
+  if(filterMenu&&filterMenu!==except)filterMenu.hidden=true
+}
+sortMenuBtn?.addEventListener('click',e=>{
+  e.stopPropagation()
+  const willOpen=sortMenu?.hidden
+  closeToolbarMenus()
+  if(sortMenu)sortMenu.hidden=!willOpen
+})
+filterMenuBtn?.addEventListener('click',e=>{
+  e.stopPropagation()
+  const willOpen=filterMenu?.hidden
+  closeToolbarMenus()
+  if(filterMenu)filterMenu.hidden=!willOpen
+})
+sortMenu?.querySelectorAll('[data-sort-value]').forEach(btn=>btn.addEventListener('click',()=>{
+  if(mailSort){
+    mailSort.value=btn.dataset.sortValue
+    mailSort.dispatchEvent(new Event('change'))
+  }
+  sortMenu.hidden=true
+}))
+filterMenu?.querySelectorAll('[data-filter-value]').forEach(btn=>btn.addEventListener('click',()=>{
+  if(mailFilter){
+    mailFilter.value=btn.dataset.filterValue
+    mailFilter.dispatchEvent(new Event('change'))
+  }
+  filterMenu.hidden=true
+}))
+document.addEventListener('click',e=>{
+  if(!e.target.closest?.('.mail-toolbar-menu'))closeToolbarMenus()
+})
+
 loadMoreBtn?.addEventListener('click',()=>loadMessages({reset:false}))
 document.getElementById('bulkCloseBtn')?.addEventListener('click',exitSelectionMode)
 function toggleSelectAllVisible(){
