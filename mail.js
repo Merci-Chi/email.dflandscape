@@ -10,7 +10,7 @@ if(!session?.user){location.replace('index.html');throw new Error('Not authentic
 
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
 let selectedIds=new Set(),selectionMode=false,longPressTimer=null
-let mailPage=0,mailPageSize=50,mailHasMore=false,mailLoading=false,searchTimer=null
+let mailPage=0,mailPageSize=50,mailHasMore=false,mailLoading=false,searchTimer=null,pendingMailReload=false
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),mailFilter=document.getElementById('mailFilter'),mailSort=document.getElementById('mailSort'),loadMoreWrap=document.getElementById('loadMoreWrap'),loadMoreBtn=document.getElementById('loadMoreBtn'),pullRefreshIndicator=document.getElementById('pullRefreshIndicator'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const composeTo=document.getElementById('composeTo'),composeCc=document.getElementById('composeCc'),composeBcc=document.getElementById('composeBcc'),composeSubject=document.getElementById('composeSubject'),composeBody=document.getElementById('composeBody'),composeDraftNote=document.getElementById('composeDraftNote')
@@ -405,7 +405,11 @@ function renderAccounts(){
   accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;renderAccounts();renderComposeAccounts();await loadMessages({reset:true});renderReader();closeMobileMenu()})
 }
 async function loadMessages({reset=true}={}){
-  if(!activeAccount||mailLoading)return
+  if(!activeAccount)return
+  if(mailLoading){
+    if(reset)pendingMailReload=true
+    return
+  }
   mailLoading=true
 
   if(reset){
@@ -459,6 +463,10 @@ async function loadMessages({reset=true}={}){
       loadMoreBtn.disabled=false
       loadMoreBtn.textContent='Load more'
     }
+    if(pendingMailReload){
+      pendingMailReload=false
+      queueMicrotask(()=>loadMessages({reset:true}))
+    }
   }
 }
 function updateLoadMore(){
@@ -474,6 +482,41 @@ function filteredMessages(){
     if(filter==='attachments'&&m.hasAttachments!==true)return false
     return true
   })
+}
+function searchMatchInfo(message){
+  const raw=(searchInput?.value||'').trim()
+  if(!raw)return null
+  const q=raw.toLowerCase()
+
+  const subject=String(message.subject||'')
+  if(subject.toLowerCase().includes(q))return {where:'subject',value:subject}
+
+  const from=String(message.from||message.sender||'')
+  const to=String(message.to||'')
+  const cc=String(message.cc||'')
+  const emailFields=[from,to,cc].filter(Boolean)
+  const emailHit=emailFields.find(value=>value.toLowerCase().includes(q))
+
+  if(emailHit){
+    const angle=emailHit.match(/^(.*?)<([^>]+)>/)
+    if(angle){
+      const name=angle[1].trim().replace(/^[\"']|[\"']$/g,'')
+      const address=angle[2].trim()
+      if(name&&name.toLowerCase().includes(q))return {where:'sender',value:name}
+      if(address.toLowerCase().includes(q))return {where:'email',value:address}
+    }
+    return {where:'email',value:emailHit}
+  }
+
+  return {where:'contents',value:''}
+}
+
+function searchMatchLabel(message){
+  const match=searchMatchInfo(message)
+  if(!match)return ''
+  const raw=(searchInput?.value||'').trim()
+  const suffix=match.value?': '+match.value:''
+  return '<span class="search-match-note">“'+esc(raw)+'” found in '+esc(match.where)+esc(suffix)+'</span>'
 }
 function groupedMessages(){
   const msgs=filteredMessages()
@@ -507,6 +550,7 @@ function renderMessages(){
           <span class="time">${esc(formatDate(m.date))}</span>
           <span class="subject">${esc(m.subject||'(No subject)')}${thread.count>1?` <span class="thread-count">(${thread.count})</span>`:''}</span>
           <span class="snippet">${thread.count>1?'Conversation · ':''}${esc(m.from||'')}</span>
+          ${searchMatchLabel(m)}
         </button>
       </div>
     </div>`
@@ -1117,7 +1161,7 @@ function formatDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.
 function formatFullDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString()}
 searchInput?.addEventListener('input',()=>{
   clearTimeout(searchTimer)
-  searchTimer=setTimeout(()=>loadMessages({reset:true}),350)
+  loadMessages({reset:true})
 })
 mailFilter?.addEventListener('change',renderMessages)
 mailSort?.addEventListener('change',()=>loadMessages({reset:true}))
