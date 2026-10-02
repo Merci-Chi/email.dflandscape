@@ -198,8 +198,16 @@ async function loadAdminVisibility(){
 
 async function loadAccounts(){
   await loadAdminVisibility()
-  const emails=await callMailFunction({action:'mailboxes'})
-  accounts=(emails||[]).filter(e=>String(e).toLowerCase().endsWith('@dflandscape.com')).map(email=>({email,name:String(email).split('@')[0]}))
+  try{
+    const emails=await callMailFunction({action:'mailboxes'})
+    accounts=(emails||[]).filter(e=>String(e).toLowerCase().endsWith('@dflandscape.com')).map(email=>({email,name:String(email).split('@')[0]}))
+    localStorage.setItem(`dfl_mail_accounts_v1:${session.user.id}`,JSON.stringify(accounts))
+  }catch(error){
+    try{
+      accounts=JSON.parse(localStorage.getItem(`dfl_mail_accounts_v1:${session.user.id}`)||'[]')
+    }catch{accounts=[]}
+    if(!accounts.length)throw error
+  }
   activeAccount=accounts[0]||null
   renderComposeAccounts()
   await applyLaunchTarget()
