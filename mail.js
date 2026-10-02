@@ -22,7 +22,229 @@ const manageEmailsLink=document.getElementById('manageEmailsLink')
 const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn')
 const networkBanner=document.getElementById('networkBanner')
 const NOTIFY_ENABLED_KEY='dfl_email_notifications_enabled',NOTIFY_SOUND_KEY='dfl_email_notification_sound'
-let backgroundCheckTimer=null
+let backgroundCheckTimer=null,scheduledMailTimer=null,mailRules=[],snoozedMessageKeys=new Set(),pendingUndoScheduleId=null
+
+function normalizeThreadSubject(subject=''){
+  return String(subject||'(No subject)')
+    .replace(/^\s*((re|fwd?|fw):\s*)+/i,'')
+    .trim()
+    .toLowerCase()
+}
+function snoozedKey(mailbox,folder,uid){
+  return `${mailbox}|${folder}|${uid}`
+}
+async function loadSnoozedState(){
+  snoozedMessageKeys=new Set()
+  if(!activeAccount)return
+  const now=new Date().toISOString()
+  try{
+    await supabase
+      .from('dflandscape_snoozed_mail')
+      .delete()
+      .eq('user_id',session.user.id)
+      .lte('snooze_until',now)
+
+    const {data,error}=await supabase
+      .from('dflandscape_snoozed_mail')
+      .select('mailbox_email,folder,uid,snooze_until')
+      .eq('user_id',session.user.id)
+      .eq('mailbox_email',activeAccount.email)
+      .gt('snooze_until',now)
+
+    if(error)throw error
+    ;(data||[]).forEach(row=>snoozedMessageKeys.add(snoozedKey(row.mailbox_email,row.folder,row.uid)))
+  }catch(error){
+    console.error('Unable to load snoozed mail',error)
+  }
+}
+function snoozeDateFromChoice(choice){
+  const now=new Date()
+  if(choice==='1h')return new Date(now.getTime()+60*60*1000)
+  if(choice==='3d')return new Date(now.getTime()+3*24*60*60*1000)
+  if(choice==='1w')return new Date(now.getTime()+7*24*60*60*1000)
+  if(choice==='tomorrow'){
+    const d=new Date(now)
+    d.setDate(d.getDate()+1)
+    d.setHours(9,0,0,0)
+    return d
+  }
+  return null
+}
+async function snoozeActiveMessage(choice){
+  if(!activeMessage||!activeAccount)return
+  const until=snoozeDateFromChoice(choice)
+  if(!until)return
+  const folder=activeMessage.sourceFolder||messageFolder(activeMessage.uid)||activeFolder
+  const payload={
+    user_id:session.user.id,
+    mailbox_email:activeAccount.email,
+    folder,
+    uid:String(activeMessage.uid),
+    subject:activeMessage.subject||'',
+    sender:activeMessage.from||activeMessage.sender||'',
+    snooze_until:until.toISOString()
+  }
+  const {error}=await supabase.from('dflandscape_snoozed_mail').upsert(payload,{onConflict:'user_id,mailbox_email,folder,uid'})
+  if(error){alert(error.message||'Unable to snooze email.');return}
+  snoozedMessageKeys.add(snoozedKey(activeAccount.email,folder,activeMessage.uid))
+  currentMessages=currentMessages.filter(m=>String(m.uid)!==String(activeMessage.uid))
+  closeMobileReader()
+  renderReader()
+  renderMessages()
+}
+async function loadMailRulesForUser(){
+  try{
+    const {data,error}=await supabase
+      .from('dflandscape_mail_rules')
+      .select('*')
+      .eq('user_id',session.user.id)
+      .eq('enabled',true)
+    if(error)throw error
+    mailRules=data||[]
+  }catch(error){
+    console.error('Unable to load mail rules',error)
+    mailRules=[]
+  }
+}
+function ruleMatches(rule,message,mailbox){
+  if(rule.mailbox_email&&String(rule.mailbox_email).toLowerCase()!==String(mailbox).toLowerCase())return false
+  const source=rule.field==='subject'?String(message.subject||''):String(message.from||message.sender||'')
+  const wanted=String(rule.match_value||'')
+  if(rule.operator==='equals')return source.trim().toLowerCase()===wanted.trim().toLowerCase()
+  return source.toLowerCase().includes(wanted.toLowerCase())
+}
+async function applyRulesToMessages(mailbox,messages){
+  if(!mailRules.length||!messages?.length)return
+  for(const message of messages){
+    for(const rule of mailRules){
+      if(!ruleMatches(rule,message,mailbox))continue
+      try{
+        const base={mailbox_email:mailbox,folder:'Inbox',uid:String(message.uid)}
+        if(rule.action==='mark_read')await callMailFunction({action:'mark_read',...base})
+        if(rule.action==='star')await callMailFunction({action:'star',...base})
+        if(rule.action==='archive')await callMailFunction({action:'archive',...base})
+        if(rule.action==='junk')await callMailFunction({action:'move',target:'Junk',...base})
+      }catch(error){console.error('Mail rule failed',rule?.name,error)}
+    }
+  }
+}
+function composeSendPayload(){
+  return {
+    mailbox_email:composeFrom.value,
+    to:composeTo.value.trim(),
+    cc:composeCc?.value.trim()||'',
+    bcc:composeBcc?.value.trim()||'',
+    subject:composeSubject.value.trim(),
+    body:composeBody.value,
+    attachments:composeAttachments.map(a=>({
+      filename:safeAttachmentName(a.filename),
+      mimeType:a.mimeType||'application/octet-stream',
+      size:Number(a.size)||0,
+      base64:a.base64||String(a.dataUrl||'').split(',')[1]||''
+    }))
+  }
+}
+async function queueScheduledMessage(sendAt,{undo=false}={}){
+  const payload=composeSendPayload()
+  if(!payload.to&&!payload.cc&&!payload.bcc)throw new Error('Enter at least one recipient.')
+  const row={
+    user_id:session.user.id,
+    mailbox_email:payload.mailbox_email,
+    to_email:payload.to,
+    cc_email:payload.cc,
+    bcc_email:payload.bcc,
+    subject:payload.subject,
+    body:payload.body,
+    attachments:payload.attachments,
+    send_at:sendAt.toISOString(),
+    status:'pending'
+  }
+  const {data,error}=await supabase.from('dflandscape_scheduled_mail').insert(row).select('id').single()
+  if(error)throw error
+  rememberRecipients([payload.to,payload.cc,payload.bcc].join(','))
+  clearDraft(payload.mailbox_email)
+  composeAttachments=[]
+  renderComposeAttachments()
+  document.getElementById('composeForm')?.reset()
+  document.getElementById('ccRow')?.classList.add('hidden')
+  document.getElementById('bccRow')?.classList.add('hidden')
+  composeModal?.classList.add('hidden')
+  if(undo){
+    pendingUndoScheduleId=data.id
+    const toast=document.getElementById('undoSendToast')
+    if(toast)toast.hidden=false
+  }
+  return data.id
+}
+async function processScheduledMail(){
+  if(!navigator.onLine)return
+  const {data,error}=await supabase
+    .from('dflandscape_scheduled_mail')
+    .select('*')
+    .eq('user_id',session.user.id)
+    .eq('status','pending')
+    .lte('send_at',new Date().toISOString())
+    .order('send_at',{ascending:true})
+    .limit(10)
+  if(error)return
+  for(const row of data||[]){
+    const {data:claimed}=await supabase
+      .from('dflandscape_scheduled_mail')
+      .update({status:'sending',updated_at:new Date().toISOString()})
+      .eq('id',row.id)
+      .eq('user_id',session.user.id)
+      .eq('status','pending')
+      .select('id')
+    if(!claimed?.length)continue
+    try{
+      await callMailFunction({
+        action:'send',
+        mailbox_email:row.mailbox_email,
+        to:row.to_email,
+        cc:row.cc_email,
+        bcc:row.bcc_email,
+        subject:row.subject,
+        body:row.body,
+        attachments:Array.isArray(row.attachments)?row.attachments:[]
+      })
+      await supabase
+        .from('dflandscape_scheduled_mail')
+        .update({status:'sent',error:null,updated_at:new Date().toISOString()})
+        .eq('id',row.id)
+        .eq('user_id',session.user.id)
+      if(pendingUndoScheduleId===row.id){
+        pendingUndoScheduleId=null
+        const toast=document.getElementById('undoSendToast')
+        if(toast){toast.querySelector('span').textContent='Sent.';setTimeout(()=>toast.hidden=true,1400)}
+      }
+    }catch(error){
+      await supabase
+        .from('dflandscape_scheduled_mail')
+        .update({status:'failed',error:error?.message||'Send failed',updated_at:new Date().toISOString()})
+        .eq('id',row.id)
+        .eq('user_id',session.user.id)
+    }
+  }
+}
+function startScheduledMailProcessor(){
+  clearInterval(scheduledMailTimer)
+  processScheduledMail()
+  scheduledMailTimer=setInterval(processScheduledMail,5000)
+}
+async function undoPendingSend(){
+  if(!pendingUndoScheduleId)return
+  const id=pendingUndoScheduleId
+  pendingUndoScheduleId=null
+  await supabase
+    .from('dflandscape_scheduled_mail')
+    .update({status:'cancelled',updated_at:new Date().toISOString()})
+    .eq('id',id)
+    .eq('user_id',session.user.id)
+    .eq('status','pending')
+  const toast=document.getElementById('undoSendToast')
+  if(toast){toast.querySelector('span').textContent='Send cancelled.';setTimeout(()=>toast.hidden=true,1400)}
+}
+
 async function callMailFunction(payload){
   const {data:{session:s}}=await supabase.auth.getSession()
   const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${s.access_token}`,'apikey':SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify(payload)})
