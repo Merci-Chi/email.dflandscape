@@ -14,6 +14,8 @@ let mailPage=0,mailPageSize=50,mailHasMore=false,mailLoading=false,searchTimer=n
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),mailFilter=document.getElementById('mailFilter'),mailSort=document.getElementById('mailSort'),loadMoreWrap=document.getElementById('loadMoreWrap'),loadMoreBtn=document.getElementById('loadMoreBtn'),pullRefreshIndicator=document.getElementById('pullRefreshIndicator'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const composeTo=document.getElementById('composeTo'),composeCc=document.getElementById('composeCc'),composeBcc=document.getElementById('composeBcc'),composeSubject=document.getElementById('composeSubject'),composeBody=document.getElementById('composeBody'),composeDraftNote=document.getElementById('composeDraftNote')
+const composeAttachmentInput=document.getElementById('composeAttachmentInput'),composeAttachmentList=document.getElementById('composeAttachmentList'),attachmentPreviewModal=document.getElementById('attachmentPreviewModal'),attachmentPreviewBody=document.getElementById('attachmentPreviewBody'),attachmentPreviewTitle=document.getElementById('attachmentPreviewTitle')
+let composeAttachments=[]
 let composeDirty=false,draftSaveTimer=null,composeOpenedFromDraft=false,composeMailboxBeforeChange=''
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
 const manageEmailsLink=document.getElementById('manageEmailsLink')
@@ -270,6 +272,107 @@ function setBulkBusy(busy){
   bulkToolbar?.querySelectorAll('button').forEach(btn=>btn.disabled=busy)
 }
 
+
+function formatBytes(bytes=0){
+  const n=Number(bytes)||0
+  if(n<1024)return n+' B'
+  if(n<1024*1024)return (n/1024).toFixed(1)+' KB'
+  return (n/(1024*1024)).toFixed(1)+' MB'
+}
+function safeAttachmentName(name='Attachment'){
+  return String(name||'Attachment').replace(/[\r\n"]/g,' ').trim()||'Attachment'
+}
+function renderComposeAttachments(){
+  if(!composeAttachmentList)return
+  composeAttachmentList.innerHTML=composeAttachments.map((a,i)=>`
+    <div class="compose-attachment-chip">
+      <span class="attachment-chip-copy"><strong>${esc(a.filename||'Attachment')}</strong><small>${esc(formatBytes(a.size||0))}</small></span>
+      <button type="button" data-remove-attachment="${i}" aria-label="Remove attachment">×</button>
+    </div>`).join('')
+  composeAttachmentList.querySelectorAll('[data-remove-attachment]').forEach(btn=>btn.addEventListener('click',()=>{
+    composeAttachments.splice(Number(btn.dataset.removeAttachment),1)
+    renderComposeAttachments()
+    scheduleDraftSave()
+  }))
+}
+function fileToAttachment(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader()
+    reader.onerror=()=>reject(new Error('Unable to read '+file.name))
+    reader.onload=()=>{
+      const dataUrl=String(reader.result||'')
+      const comma=dataUrl.indexOf(',')
+      resolve({
+        filename:safeAttachmentName(file.name),
+        mimeType:file.type||'application/octet-stream',
+        size:file.size,
+        dataUrl,
+        base64:comma>=0?dataUrl.slice(comma+1):''
+      })
+    }
+    reader.readAsDataURL(file)
+  })
+}
+async function addComposeFiles(files){
+  const incoming=[...(files||[])]
+  if(!incoming.length)return
+  const currentSize=composeAttachments.reduce((sum,a)=>sum+(Number(a.size)||0),0)
+  const incomingSize=incoming.reduce((sum,f)=>sum+(Number(f.size)||0),0)
+  if(currentSize+incomingSize>12*1024*1024){
+    alert('Attachments can total up to 12 MB per email.')
+    return
+  }
+  try{
+    const converted=await Promise.all(incoming.map(fileToAttachment))
+    composeAttachments.push(...converted)
+    renderComposeAttachments()
+    scheduleDraftSave()
+  }catch(error){alert(error.message||'Unable to add attachment.')}
+}
+function attachmentPreviewHtml(a){
+  const type=String(a.mimeType||'').toLowerCase()
+  const url=a.dataUrl||''
+  if(type.startsWith('image/')&&url)return `<img class="attachment-preview-image" src="${url}" alt="${esc(a.filename||'Attachment')}">`
+  if(type==='application/pdf'&&url)return `<iframe class="attachment-preview-pdf" src="${url}" title="${esc(a.filename||'PDF')}"></iframe>`
+  return `<div class="attachment-no-preview"><strong>No inline preview available</strong><span>${esc(a.filename||'Attachment')}</span></div>`
+}
+function openAttachmentPreview(index){
+  const a=activeMessage?.attachments?.[Number(index)]
+  if(!a)return
+  if(attachmentPreviewTitle)attachmentPreviewTitle.textContent=a.filename||'Attachment'
+  if(attachmentPreviewBody)attachmentPreviewBody.innerHTML=attachmentPreviewHtml(a)
+  attachmentPreviewModal?.classList.remove('hidden')
+}
+function downloadAttachment(index){
+  const a=activeMessage?.attachments?.[Number(index)]
+  if(!a?.dataUrl)return
+  const link=document.createElement('a')
+  link.href=a.dataUrl
+  link.download=safeAttachmentName(a.filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+function renderMessageAttachments(message){
+  const items=message?.attachments||[]
+  if(!items.length)return ''
+  return `<section class="reader-attachments">
+    <h3>Attachments <span>${items.length}</span></h3>
+    <div class="reader-attachment-grid">
+      ${items.map((a,i)=>`<div class="reader-attachment-card">
+        <div class="reader-attachment-info">
+          <strong>${esc(a.filename||'Attachment')}</strong>
+          <span>${esc(a.mimeType||'File')} · ${esc(formatBytes(a.size||0))}</span>
+        </div>
+        <div class="reader-attachment-actions">
+          ${(/^image\//i.test(a.mimeType||'')||a.mimeType==='application/pdf')? `<button type="button" data-preview-attachment="${i}">Preview</button>` : ''}
+          <button type="button" data-download-attachment="${i}">Download</button>
+        </div>
+      </div>`).join('')}
+    </div>
+  </section>`
+}
+
 async function loadMessage(uid){
   try{
     activeMessageId=uid
@@ -294,6 +397,7 @@ async function loadMessage(uid){
       <h2>${esc(m.subject||'(No subject)')}</h2>
       <div class="reader-meta">From: ${esc(m.sender||m.from||'')}<br>To: ${esc(m.to||activeAccount.email)}<br>${esc(formatFullDate(m.date))}</div>
       <div class="reader-body">${m.html||esc(m.body||'')}</div>
+      ${renderMessageAttachments(m)}
     </article>`
     document.getElementById('replyMessageBtn')?.addEventListener('click',()=>openReplyComposer(m))
     document.getElementById('replyAllMessageBtn')?.addEventListener('click',()=>openReplyAllComposer(m))
@@ -304,6 +408,8 @@ async function loadMessage(uid){
     document.getElementById('spamMessageBtn')?.addEventListener('click',()=>moveActiveMessage('Junk'))
     document.getElementById('moveMessageSelect')?.addEventListener('change',e=>{if(e.target.value)moveActiveMessage(e.target.value)})
     document.getElementById('deleteMessageBtn')?.addEventListener('click',deleteActiveMessage)
+    readerPanel.querySelectorAll('[data-preview-attachment]').forEach(btn=>btn.addEventListener('click',()=>openAttachmentPreview(btn.dataset.previewAttachment)))
+    readerPanel.querySelectorAll('[data-download-attachment]').forEach(btn=>btn.addEventListener('click',()=>downloadAttachment(btn.dataset.downloadAttachment)))
     if(m.seen===false){
       callMailFunction({action:'mark_read',folder:sourceFolder,uid,mailbox_email:activeAccount.email}).then(()=>{
         const row=currentMessages.find(x=>String(x.uid)===String(uid));if(row)row.seen=true;renderMessages()
@@ -409,13 +515,15 @@ function openNewComposer(){
   const restored=restoreDraft()
   if(!restored){
     document.getElementById('composeForm')?.reset()
+    composeAttachments=[]
+    renderComposeAttachments()
     renderComposeAccounts()
     if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
     if(composeBody)composeBody.value=appendSignature('',composeFrom?.value)
   }
   setTimeout(()=>composeTo?.focus(),50)
 }
-function setComposeValues({to='',cc='',bcc='',subject='',body=''}={}){
+function setComposeValues({to='',cc='',bcc='',subject='',body='',attachments=[]}={}){
   renderComposeAccounts()
   if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
   if(composeTo)composeTo.value=to
@@ -423,6 +531,8 @@ function setComposeValues({to='',cc='',bcc='',subject='',body=''}={}){
   if(composeBcc)composeBcc.value=bcc
   if(composeSubject)composeSubject.value=subject
   if(composeBody)composeBody.value=appendSignature(body,composeFrom?.value)
+  composeAttachments=(attachments||[]).map(a=>({...a}))
+  renderComposeAttachments()
   if(cc)document.getElementById('ccRow')?.classList.remove('hidden')
   if(bcc)document.getElementById('bccRow')?.classList.remove('hidden')
   composeOpenedFromDraft=false
@@ -483,7 +593,8 @@ function openForwardComposer(message){
   setComposeValues({
     to:'',
     subject:forwardSubject(message.subject),
-    body:forwarded
+    body:forwarded,
+    attachments:(message.attachments||[]).map(a=>({...a}))
   })
 }
 
@@ -625,6 +736,10 @@ document.getElementById('closeCompose')?.addEventListener('click',closeComposeSa
 
 document.getElementById('showCcBtn')?.addEventListener('click',()=>{document.getElementById('ccRow')?.classList.toggle('hidden');if(!document.getElementById('ccRow')?.classList.contains('hidden'))composeCc?.focus()})
 document.getElementById('showBccBtn')?.addEventListener('click',()=>{document.getElementById('bccRow')?.classList.toggle('hidden');if(!document.getElementById('bccRow')?.classList.contains('hidden'))composeBcc?.focus()})
+document.getElementById('addAttachmentBtn')?.addEventListener('click',()=>composeAttachmentInput?.click())
+composeAttachmentInput?.addEventListener('change',async()=>{await addComposeFiles(composeAttachmentInput.files);composeAttachmentInput.value=''})
+document.getElementById('closeAttachmentPreview')?.addEventListener('click',()=>attachmentPreviewModal?.classList.add('hidden'))
+attachmentPreviewModal?.addEventListener('click',e=>{if(e.target===attachmentPreviewModal)attachmentPreviewModal.classList.add('hidden')})
 
 ;[composeTo,composeCc,composeBcc,composeSubject,composeBody].forEach(el=>el?.addEventListener('input',scheduleDraftSave))
 composeFrom?.addEventListener('focus',()=>{composeMailboxBeforeChange=composeFrom.value})
@@ -650,10 +765,18 @@ document.getElementById('composeForm')?.addEventListener('submit',async e=>{
       cc:composeCc?.value.trim()||'',
       bcc:composeBcc?.value.trim()||'',
       subject:composeSubject.value.trim(),
-      body:composeBody.value
+      body:composeBody.value,
+      attachments:composeAttachments.map(a=>({
+        filename:safeAttachmentName(a.filename),
+        mimeType:a.mimeType||'application/octet-stream',
+        size:Number(a.size)||0,
+        base64:a.base64||String(a.dataUrl||'').split(',')[1]||''
+      }))
     })
     rememberRecipients([composeTo.value,composeCc?.value,composeBcc?.value].join(','))
     clearDraft(composeFrom.value)
+    composeAttachments=[]
+    renderComposeAttachments()
     status.textContent='Sent.'
     e.target.reset()
     document.getElementById('ccRow')?.classList.add('hidden')
