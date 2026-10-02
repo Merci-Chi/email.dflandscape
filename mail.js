@@ -68,6 +68,7 @@ function filteredMessages(){
   const q=(searchInput?.value||'').trim().toLowerCase()
   const filter=mailFilter?.value||'all'
   return currentMessages.filter(m=>{
+    if(activeFolder==='Starred'&&m.flagged!==true)return false
     if(q&&!`${m.sender} ${m.from} ${m.subject} ${m.to||''} ${m.cc||''}`.toLowerCase().includes(q))return false
     if(filter==='unread'&&m.seen!==false)return false
     if(filter==='starred'&&m.flagged!==true)return false
