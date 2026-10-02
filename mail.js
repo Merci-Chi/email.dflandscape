@@ -251,8 +251,17 @@ async function callMailFunction(payload){
 function mailboxSnapshotKey(mailbox,folder){
   return `dfl_mail_snapshot_v1:${session.user.id}:${mailbox}:${folder}`
 }
+function getMailboxSnapshot(mailbox=activeAccount?.email,folder=activeFolder){
+  if(!mailbox)return null
+  try{
+    const raw=localStorage.getItem(mailboxSnapshotKey(mailbox,folder))
+    if(!raw)return null
+    const cached=JSON.parse(raw)
+    return Array.isArray(cached.messages)?cached:null
+  }catch{return null}
+}
 function saveMailboxSnapshot(){
-  if(!activeAccount||!currentMessages.length)return
+  if(!activeAccount)return
   if((searchInput?.value||'').trim())return
   try{
     localStorage.setItem(mailboxSnapshotKey(activeAccount.email,activeFolder),JSON.stringify({
@@ -263,18 +272,47 @@ function saveMailboxSnapshot(){
   }catch{}
 }
 function restoreMailboxSnapshot(){
-  if(!activeAccount)return false
-  try{
-    const raw=localStorage.getItem(mailboxSnapshotKey(activeAccount.email,activeFolder))
-    if(!raw)return false
-    const cached=JSON.parse(raw)
-    if(!Array.isArray(cached.messages))return false
-    currentMessages=cached.messages
-    mailHasMore=cached.hasMore===true
-    renderMessages()
-    updateLoadMore()
-    return true
-  }catch{return false}
+  const cached=getMailboxSnapshot()
+  if(!cached)return false
+  currentMessages=cached.messages
+  mailHasMore=cached.hasMore===true
+  renderMessages()
+  updateLoadMore()
+  return true
+}
+function renderMessageListSkeleton(count){
+  const total=Math.max(0,Number(count)||0)
+  messageList.innerHTML=Array.from({length:total},(_,i)=>`
+    <div class="mail-skeleton-row" aria-hidden="true">
+      <span class="mail-skeleton-circle"></span>
+      <span class="mail-skeleton-star"></span>
+      <span class="mail-skeleton-copy">
+        <span class="mail-skeleton-line mail-skeleton-sender" style="--skeleton-delay:${i*35}ms"></span>
+        <span class="mail-skeleton-line mail-skeleton-subject" style="--skeleton-delay:${i*35+20}ms"></span>
+        <span class="mail-skeleton-line mail-skeleton-preview" style="--skeleton-delay:${i*35+40}ms"></span>
+      </span>
+      <span class="mail-skeleton-line mail-skeleton-time" style="--skeleton-delay:${i*35+10}ms"></span>
+    </div>
+  `).join('')
+}
+function renderReaderSkeleton(){
+  if(!readerPanel)return
+  readerPanel.innerHTML=`
+    <article class="reader reader-rich reader-skeleton" aria-hidden="true">
+      <div class="reader-skeleton-actions">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="mail-skeleton-line reader-skeleton-eyebrow"></div>
+      <div class="mail-skeleton-line reader-skeleton-title"></div>
+      <div class="mail-skeleton-line reader-skeleton-meta"></div>
+      <div class="mail-skeleton-line reader-skeleton-meta short"></div>
+      <div class="reader-skeleton-divider"></div>
+      <div class="mail-skeleton-line reader-skeleton-body"></div>
+      <div class="mail-skeleton-line reader-skeleton-body medium"></div>
+      <div class="mail-skeleton-line reader-skeleton-body short"></div>
+    </article>
+  `
+  if(window.matchMedia('(max-width:900px)').matches)readerPanel.classList.add('mobile-open')
 }
 function updateNetworkBanner(){
   if(!networkBanner)return
@@ -397,6 +435,11 @@ async function applyLaunchTarget(){
   renderAccounts()
   document.querySelectorAll('.folder').forEach(btn=>btn.classList.toggle('active',(btn.dataset.folder||'Inbox')===activeFolder))
 
+  if(uid&&activeAccount){
+    activeMessageId=uid
+    renderReaderSkeleton()
+  }
+
   if(activeAccount)await loadMessages({reset:true})
 
   if(uid&&activeAccount){
@@ -462,10 +505,12 @@ async function loadMessages({reset=true}={}){
 
   if(reset){
     mailPage=0
+    const previousSnapshot=getMailboxSnapshot()
+    const previousCount=previousSnapshot?.messages?.length||0
     currentMessages=[]
     selectedIds.clear()
     selectionMode=false
-    messageList.innerHTML='<div class="empty-reader" style="height:220px"><strong>Loading mail...</strong></div>'
+    renderMessageListSkeleton(previousCount)
   }
 
   mailboxHeading.textContent=activeFolder==='Junk'?'Spam':activeFolder
