@@ -531,3 +531,19 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .reader-attachment-actions button{flex:1}
   .attachment-preview-card{width:100vw;height:100dvh;border-radius:0}
 }
+
+
+/* Batch 7 PWA notifications + offline */
+.network-banner{position:sticky;top:64px;z-index:75;padding:9px 14px;text-align:center;background:#fff4d6;color:#6d5414;border-bottom:1px solid #ead9a4;font-size:12px;font-weight:900}
+.network-banner[hidden]{display:none!important}
+.notification-settings{display:grid;gap:14px}
+.notification-setting-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 0;border-bottom:1px solid #edf0ed}
+.notification-setting-row>span:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+.notification-setting-row strong{font-size:13px;color:#263a2b}
+.notification-setting-row small{font-size:11px;color:#7d887d;line-height:1.4}
+.notification-settings>button{justify-self:start;border:1px solid #cfd8cf;background:#fff;color:#27402c;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:900}
+.notification-settings>button:hover{background:#eef3ee}
+@media(max-width:650px){
+  .network-banner{top:64px}
+  .notification-setting-row{align-items:flex-start}
+}
