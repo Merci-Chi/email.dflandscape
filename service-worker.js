@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dfl-email-runtime-v2'
+const CACHE_NAME = 'dfl-email-mobile-polish-1'
 const APP_SHELL = [
   '/',
   '/index.html',
