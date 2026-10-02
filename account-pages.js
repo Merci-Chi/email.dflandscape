@@ -5,74 +5,76 @@ const SUPABASE_URL='https://wfxuxrvygyzonkflpwoq.supabase.co'
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_e2h4t8AvCobzftt36UrDbw_NJGq8qlJ'
 const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY)
 
-// Shared mobile drawer for Settings + Manage Emails
-const accountMobileMenuBtn=document.getElementById('accountMobileMenuBtn')
-const accountMobileOverlay=document.getElementById('accountMobileOverlay')
-const accountSidebar=document.querySelector('.account-shell > .sidebar')
+// Same mobile menu behavior as the regular Mail page
+const mobileMenuBtn=document.getElementById('mobileMenuBtn')
+const mobileMenuClose=document.getElementById('mobileMenuClose')
+const mobileMenuOverlay=document.getElementById('mobileMenuOverlay')
+const mailSidebar=document.getElementById('mailSidebar')
 
-function isAccountMobile(){
-  return window.matchMedia('(max-width:650px)').matches
+function isMobileMenuMode(){return window.matchMedia('(max-width:650px)').matches}
+function openMobileMenu(){
+  if(!isMobileMenuMode()||!mailSidebar)return
+  mailSidebar.classList.add('mobile-open')
+  mobileMenuOverlay?.removeAttribute('hidden')
+  requestAnimationFrame(()=>mobileMenuOverlay?.classList.add('show'))
+  mobileMenuBtn?.setAttribute('aria-expanded','true')
+  document.body.classList.add('mobile-menu-open')
 }
-function openAccountMobileMenu(){
-  if(!isAccountMobile()||!accountSidebar)return
-  accountSidebar.classList.add('account-mobile-open')
-  accountMobileOverlay?.removeAttribute('hidden')
-  requestAnimationFrame(()=>accountMobileOverlay?.classList.add('show'))
-  accountMobileMenuBtn?.setAttribute('aria-expanded','true')
-  document.body.classList.add('account-mobile-menu-open')
-}
-function closeAccountMobileMenu(){
-  accountSidebar?.classList.remove('account-mobile-open')
-  accountMobileOverlay?.classList.remove('show')
-  accountMobileMenuBtn?.setAttribute('aria-expanded','false')
-  document.body.classList.remove('account-mobile-menu-open')
-  if(accountMobileOverlay){
-    setTimeout(()=>{
-      if(!accountSidebar?.classList.contains('account-mobile-open'))accountMobileOverlay.setAttribute('hidden','')
-    },180)
+function closeMobileMenu(){
+  mailSidebar?.classList.remove('mobile-open')
+  mobileMenuOverlay?.classList.remove('show')
+  mobileMenuBtn?.setAttribute('aria-expanded','false')
+  document.body.classList.remove('mobile-menu-open')
+  if(mobileMenuOverlay){
+    window.setTimeout(()=>{if(!mailSidebar?.classList.contains('mobile-open'))mobileMenuOverlay.setAttribute('hidden','')},180)
   }
 }
-accountMobileMenuBtn?.addEventListener('click',()=>accountSidebar?.classList.contains('account-mobile-open')?closeAccountMobileMenu():openAccountMobileMenu())
-accountMobileOverlay?.addEventListener('click',closeAccountMobileMenu)
-accountSidebar?.querySelectorAll('a,button').forEach(el=>el.addEventListener('click',e=>{
-  if(isAccountMobile()&&e.currentTarget!==accountMobileMenuBtn)closeAccountMobileMenu()
-}))
-window.addEventListener('resize',()=>{if(!isAccountMobile())closeAccountMobileMenu()})
+mobileMenuBtn?.addEventListener('click',()=>mailSidebar?.classList.contains('mobile-open')?closeMobileMenu():openMobileMenu())
+mobileMenuClose?.addEventListener('click',closeMobileMenu)
+mobileMenuOverlay?.addEventListener('click',closeMobileMenu)
+mailSidebar?.querySelectorAll('a').forEach(link=>link.addEventListener('click',closeMobileMenu))
+window.addEventListener('resize',()=>{if(!isMobileMenuMode())closeMobileMenu()})
 
-let accountSwipeStartX=0,accountSwipeStartY=0,accountSwipeLastX=0,accountSwipeLastY=0,accountSwipeTracking=false
-const ACCOUNT_SWIPE_ZONE=42
+let touchStartX=0,touchStartY=0,touchLastX=0,touchLastY=0,trackingHorizontalSwipe=false
+const SWIPE_START_ZONE=Math.min(window.innerWidth*0.7,320)
 
 document.addEventListener('touchstart',e=>{
-  if(!isAccountMobile()||e.touches.length!==1)return
+  if(!isMobileMenuMode()||e.touches.length!==1)return
   if(e.target.closest?.('input,textarea,select,[contenteditable="true"],.email-request-modal'))return
+
   const touch=e.touches[0]
-  accountSwipeStartX=accountSwipeLastX=touch.clientX
-  accountSwipeStartY=accountSwipeLastY=touch.clientY
-  const drawerOpen=accountSidebar?.classList.contains('account-mobile-open')
-  accountSwipeTracking=drawerOpen||touch.clientX<=ACCOUNT_SWIPE_ZONE
+  touchStartX=touch.clientX
+  touchStartY=touch.clientY
+  touchLastX=touchStartX
+  touchLastY=touchStartY
+
+  const sidebarOpen=mailSidebar?.classList.contains('mobile-open')
+  const startedInLeftZone=touchStartX<=SWIPE_START_ZONE
+  trackingHorizontalSwipe=sidebarOpen||startedInLeftZone
 },{passive:true})
 
 document.addEventListener('touchmove',e=>{
-  if(!accountSwipeTracking||e.touches.length!==1)return
+  if(!trackingHorizontalSwipe||e.touches.length!==1)return
   const touch=e.touches[0]
-  accountSwipeLastX=touch.clientX
-  accountSwipeLastY=touch.clientY
+  touchLastX=touch.clientX
+  touchLastY=touch.clientY
 },{passive:true})
 
 document.addEventListener('touchend',e=>{
-  if(!accountSwipeTracking)return
-  accountSwipeTracking=false
-  const touch=e.changedTouches?.[0]
-  const endX=touch?.clientX??accountSwipeLastX
-  const endY=touch?.clientY??accountSwipeLastY
-  const dx=endX-accountSwipeStartX
-  const dy=endY-accountSwipeStartY
-  const horizontal=Math.abs(dx)>=60&&Math.abs(dx)>Math.abs(dy)*1.15
-  if(!horizontal)return
+  if(!trackingHorizontalSwipe)return
+  trackingHorizontalSwipe=false
 
-  const drawerOpen=accountSidebar?.classList.contains('account-mobile-open')
-  if(dx>0&&!drawerOpen)openAccountMobileMenu()
-  if(dx<0&&drawerOpen)closeAccountMobileMenu()
+  const endTouch=e.changedTouches?.[0]
+  const endX=endTouch?.clientX??touchLastX
+  const endY=endTouch?.clientY??touchLastY
+  const dx=endX-touchStartX
+  const dy=endY-touchStartY
+  const horizontalEnough=Math.abs(dx)>=60&&Math.abs(dx)>Math.abs(dy)*1.15
+  if(!horizontalEnough)return
+
+  const sidebarOpen=mailSidebar?.classList.contains('mobile-open')
+  if(dx>0&&!sidebarOpen)openMobileMenu()
+  else if(dx<0&&sidebarOpen)closeMobileMenu()
 },{passive:true})
 
 const {data:{session}}=await supabase.auth.getSession()
