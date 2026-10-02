@@ -50,7 +50,7 @@ function renderAccounts(){
   if(!accountList)return
   if(!accounts.length){accountList.innerHTML='<div class="no-access">No mailbox access.</div>';return}
   accountList.innerHTML=accounts.map(a=>`<button class="account-btn ${activeAccount?.email===a.email?'active':''}" data-email="${esc(a.email)}"><span class="account-copy"><strong>${esc(a.name)}</strong><span>${esc(a.email)}</span></span></button>`).join('')
-  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;renderAccounts();renderComposeAccounts();await loadMessages();renderReader();closeMobileMenu()})
+  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;renderAccounts();renderComposeAccounts();await loadMessages({reset:true});renderReader();closeMobileMenu()})
 }
 async function loadMessages({reset=true}={}){
   if(!activeAccount||mailLoading)return
@@ -107,11 +107,9 @@ function updateLoadMore(){
   if(loadMoreWrap)loadMoreWrap.hidden=!mailHasMore
 }
 function filteredMessages(){
-  const q=(searchInput?.value||'').trim().toLowerCase()
   const filter=mailFilter?.value||'all'
   return currentMessages.filter(m=>{
     if(activeFolder==='Starred'&&m.flagged!==true)return false
-    if(q&&!`${m.sender} ${m.from} ${m.subject} ${m.to||''} ${m.cc||''}`.toLowerCase().includes(q))return false
     if(filter==='unread'&&m.seen!==false)return false
     if(filter==='starred'&&m.flagged!==true)return false
     if(filter==='attachments'&&m.hasAttachments!==true)return false
@@ -583,8 +581,13 @@ async function deleteActiveMessage(){
 function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]))}
 function formatDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString([],{month:'short',day:'numeric'})}
 function formatFullDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString()}
-searchInput?.addEventListener('input',renderMessages)
+searchInput?.addEventListener('input',()=>{
+  clearTimeout(searchTimer)
+  searchTimer=setTimeout(()=>loadMessages({reset:true}),350)
+})
 mailFilter?.addEventListener('change',renderMessages)
+mailSort?.addEventListener('change',()=>loadMessages({reset:true}))
+loadMoreBtn?.addEventListener('click',()=>loadMessages({reset:false}))
 document.getElementById('bulkCloseBtn')?.addEventListener('click',exitSelectionMode)
 document.getElementById('bulkSelectAllBtn')?.addEventListener('click',()=>{
   const ids=visibleMessageIds()
@@ -606,11 +609,11 @@ document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',a
   selectedIds.clear();selectionMode=false
   document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn))
   if(mailFilter)mailFilter.value='all'
-  await loadMessages()
+  await loadMessages({reset:true})
   renderReader()
   closeMobileMenu()
 }))
-document.getElementById('refreshBtn')?.addEventListener('click',loadMessages)
+document.getElementById('refreshBtn')?.addEventListener('click',()=>loadMessages({reset:true}))
 document.getElementById('composeBtn')?.addEventListener('click',openNewComposer)
 
 function closeComposeSafely(){
@@ -794,6 +797,43 @@ document.addEventListener('touchend',e=>{
   }
 
   trackingHorizontalSwipe=false
+},{passive:true})
+
+let pullStartY=0,pullLastY=0,pullTracking=false,pullTriggered=false
+
+document.addEventListener('touchstart',e=>{
+  if(!isMobileMenuMode()||e.touches.length!==1)return
+  if(window.scrollY>2)return
+  if(e.target.closest?.('.reader-panel,.sidebar,.compose-modal,.message-swipe-shell'))return
+  pullStartY=e.touches[0].clientY
+  pullLastY=pullStartY
+  pullTracking=true
+  pullTriggered=false
+},{passive:true})
+
+document.addEventListener('touchmove',e=>{
+  if(!pullTracking||e.touches.length!==1)return
+  pullLastY=e.touches[0].clientY
+  const dy=pullLastY-pullStartY
+  if(pullRefreshIndicator){
+    if(dy>18){
+      pullRefreshIndicator.hidden=false
+      pullRefreshIndicator.textContent=dy>72?'Release to refresh':'Pull to refresh'
+    }else{
+      pullRefreshIndicator.hidden=true
+    }
+  }
+  if(dy>72)pullTriggered=true
+},{passive:true})
+
+document.addEventListener('touchend',async()=>{
+  if(!pullTracking)return
+  pullTracking=false
+  if(pullRefreshIndicator)pullRefreshIndicator.hidden=true
+  if(pullTriggered){
+    pullTriggered=false
+    await loadMessages({reset:true})
+  }
 },{passive:true})
 
 renderReader();await loadAccounts()
