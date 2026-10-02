@@ -10,8 +10,9 @@ if(!session?.user){location.replace('index.html');throw new Error('Not authentic
 
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
 let selectedIds=new Set(),selectionMode=false,longPressTimer=null
+let mailPage=0,mailPageSize=50,mailHasMore=false,mailLoading=false,searchTimer=null
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
-const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),mailFilter=document.getElementById('mailFilter'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
+const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),mailFilter=document.getElementById('mailFilter'),mailSort=document.getElementById('mailSort'),loadMoreWrap=document.getElementById('loadMoreWrap'),loadMoreBtn=document.getElementById('loadMoreBtn'),pullRefreshIndicator=document.getElementById('pullRefreshIndicator'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const composeTo=document.getElementById('composeTo'),composeCc=document.getElementById('composeCc'),composeBcc=document.getElementById('composeBcc'),composeSubject=document.getElementById('composeSubject'),composeBody=document.getElementById('composeBody'),composeDraftNote=document.getElementById('composeDraftNote')
 let composeDirty=false,draftSaveTimer=null,composeOpenedFromDraft=false,composeMailboxBeforeChange=''
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
@@ -51,18 +52,59 @@ function renderAccounts(){
   accountList.innerHTML=accounts.map(a=>`<button class="account-btn ${activeAccount?.email===a.email?'active':''}" data-email="${esc(a.email)}"><span class="account-copy"><strong>${esc(a.name)}</strong><span>${esc(a.email)}</span></span></button>`).join('')
   accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;renderAccounts();renderComposeAccounts();await loadMessages();renderReader();closeMobileMenu()})
 }
-async function loadMessages(){
-  if(!activeAccount)return
+async function loadMessages({reset=true}={}){
+  if(!activeAccount||mailLoading)return
+  mailLoading=true
+
+  if(reset){
+    mailPage=0
+    currentMessages=[]
+    selectedIds.clear()
+    selectionMode=false
+    messageList.innerHTML='<div class="empty-reader" style="height:220px"><strong>Loading mail...</strong></div>'
+  }
+
   mailboxHeading.textContent=activeFolder==='Junk'?'Spam':activeFolder
   mailboxAddress.textContent=activeAccount.email
-  messageList.innerHTML='<div class="empty-reader" style="height:220px"><strong>Loading mail...</strong></div>'
+
+  if(loadMoreBtn){
+    loadMoreBtn.disabled=true
+    loadMoreBtn.textContent=reset?'Loading…':'Loading more…'
+  }
+
   try{
-    currentMessages=await callMailFunction({action:'list',folder:activeFolder,mailbox_email:activeAccount.email})
+    const result=await callMailFunction({
+      action:'list',
+      folder:activeFolder,
+      mailbox_email:activeAccount.email,
+      query:(searchInput?.value||'').trim(),
+      page:mailPage,
+      page_size:mailPageSize,
+      sort:mailSort?.value||'newest'
+    })
+    const pageMessages=Array.isArray(result)?result:(result?.messages||[])
+    currentMessages=reset?pageMessages:[...currentMessages,...pageMessages]
+    mailHasMore=Array.isArray(result)?false:result?.hasMore===true
+    mailPage+=1
     renderMessages()
+    updateLoadMore()
     await loadUnreadCount()
   }catch(e){
-    messageList.innerHTML=`<div class="empty-reader" style="height:220px"><strong>Unable to load mail</strong><span>${esc(e.message)}</span></div>`
+    if(reset){
+      messageList.innerHTML=`<div class="empty-reader" style="height:220px"><strong>Unable to load mail</strong><span>${esc(e.message)}</span></div>`
+    }else{
+      alert(e.message||'Unable to load more mail.')
+    }
+  }finally{
+    mailLoading=false
+    if(loadMoreBtn){
+      loadMoreBtn.disabled=false
+      loadMoreBtn.textContent='Load more'
+    }
   }
+}
+function updateLoadMore(){
+  if(loadMoreWrap)loadMoreWrap.hidden=!mailHasMore
 }
 function filteredMessages(){
   const q=(searchInput?.value||'').trim().toLowerCase()
