@@ -537,6 +537,22 @@ function groupedMessages(){
     return {latest:thread[0],messages:thread,count:thread.length}
   }).sort((a,b)=>new Date(b.latest.date||0)-new Date(a.latest.date||0))
 }
+function senderDisplayName(message){
+  const raw=String(message.sender||message.from||'Unknown sender').trim()
+  const angle=raw.match(/^\s*"?([^"<]+?)"?\s*<[^>]+>\s*$/)
+  if(angle?.[1])return angle[1].trim()
+  if(raw.includes('@')){
+    const email=(raw.match(/<?([^<>\s]+@[^<>\s]+)>?/)||[])[1]||raw
+    return email.split('@')[0]||email
+  }
+  return raw
+}
+function senderDisplayEmail(message){
+  const raw=String(message.from||message.sender||'').trim()
+  const match=raw.match(/<?([^<>\s]+@[^<>\s]+)>?/)
+  return match?.[1]||raw
+}
+
 function renderMessages(){
   const threads=groupedMessages()
   messageList.innerHTML=threads.length?threads.map(thread=>{
@@ -552,10 +568,10 @@ function renderMessages(){
         </button>
         <button class="message-star ${m.flagged?'active':''}" data-star-id="${esc(m.uid)}" type="button" aria-label="${m.flagged?'Unstar':'Star'} message">★</button>
         <button class="message-row ${unread?'unread':''}" data-id="${esc(m.uid)}">
-          <span class="sender">${esc(m.sender||m.from)}</span>
+          <span class="sender">${esc(senderDisplayName(m))}</span>
           <span class="time">${esc(formatDate(m.date))}</span>
           <span class="subject">${esc(m.subject||'(No subject)')}${thread.count>1?` <span class="thread-count">(${thread.count})</span>`:''}</span>
-          <span class="snippet">${thread.count>1?'Conversation · ':''}${esc(m.from||'')}</span>
+          <span class="snippet">${thread.count>1?'Conversation · ':''}${esc(senderDisplayEmail(m))}</span>
           ${searchMatchLabel(m)}
         </button>
       </div>
