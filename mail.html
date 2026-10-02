@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#0f2617">
   <title>Desert Forest Landscape Mailbox</title>
-  <link rel="stylesheet" href="styles.css?v=batch5-search-2">
+  <link rel="stylesheet" href="styles.css?v=batch6-attachments-1">
 </head>
 <body class="mail-page">
   <header class="topbar">
@@ -227,6 +227,12 @@
       </div>
       <label>Subject<input type="text" id="composeSubject"></label>
       <textarea id="composeBody" placeholder="Write your message..."></textarea>
+      <div class="compose-attachments">
+        <input id="composeAttachmentInput" type="file" multiple hidden>
+        <button type="button" id="addAttachmentBtn" class="attachment-add-btn">Attach files</button>
+        <span class="attachment-help">Images, PDFs, documents and other files</span>
+      </div>
+      <div id="composeAttachmentList" class="compose-attachment-list"></div>
       <div class="compose-draft-note" id="composeDraftNote" aria-live="polite"></div>
       <div class="compose-actions">
         <span id="composeStatus"></span>
@@ -235,7 +241,17 @@
     </form>
   </div>
 
-  <script type="module" src="mail.js?v=batch5-search-2"></script>
+  <div class="modal-backdrop hidden attachment-preview-modal" id="attachmentPreviewModal">
+    <div class="attachment-preview-card">
+      <div class="compose-head">
+        <strong id="attachmentPreviewTitle">Attachment</strong>
+        <button type="button" id="closeAttachmentPreview" aria-label="Close">×</button>
+      </div>
+      <div id="attachmentPreviewBody" class="attachment-preview-body"></div>
+    </div>
+  </div>
+
+  <script type="module" src="mail.js?v=batch6-attachments-1"></script>
   <script src="update-manager.js?v=1" defer></script>
 </body>
 </html>
