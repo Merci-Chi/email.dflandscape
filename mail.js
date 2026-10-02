@@ -872,22 +872,46 @@ function attachmentPreviewHtml(a){
   if(type==='application/pdf'&&url)return `<iframe class="attachment-preview-pdf" src="${url}" title="${esc(a.filename||'PDF')}"></iframe>`
   return `<div class="attachment-no-preview"><strong>No inline preview available</strong><span>${esc(a.filename||'Attachment')}</span></div>`
 }
-function openAttachmentPreview(index){
-  const a=activeMessage?.attachments?.[Number(index)]
-  if(!a)return
-  if(attachmentPreviewTitle)attachmentPreviewTitle.textContent=a.filename||'Attachment'
-  if(attachmentPreviewBody)attachmentPreviewBody.innerHTML=attachmentPreviewHtml(a)
-  attachmentPreviewModal?.classList.remove('hidden')
+async function ensureAttachmentData(index){
+  const i=Number(index)
+  const current=activeMessage?.attachments?.[i]
+  if(!current)throw new Error('Attachment not found.')
+  if(current.dataUrl&&current.base64)return current
+  const folder=activeMessage?.sourceFolder||messageFolder(activeMessageId)||activeFolder
+  const loaded=await callMailFunction({
+    action:'get_attachment',
+    folder,
+    uid:String(activeMessageId),
+    attachment_index:i,
+    mailbox_email:activeAccount.email
+  })
+  activeMessage.attachments[i]={...current,...loaded}
+  saveMessageCache(activeMessage)
+  return activeMessage.attachments[i]
 }
-function downloadAttachment(index){
-  const a=activeMessage?.attachments?.[Number(index)]
-  if(!a?.dataUrl)return
-  const link=document.createElement('a')
-  link.href=a.dataUrl
-  link.download=safeAttachmentName(a.filename)
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
+async function openAttachmentPreview(index){
+  try{
+    const existing=activeMessage?.attachments?.[Number(index)]
+    if(attachmentPreviewTitle)attachmentPreviewTitle.textContent=existing?.filename||'Attachment'
+    if(attachmentPreviewBody)attachmentPreviewBody.innerHTML='<div class="attachment-no-preview"><strong>Loading attachment…</strong></div>'
+    attachmentPreviewModal?.classList.remove('hidden')
+    const a=await ensureAttachmentData(index)
+    if(attachmentPreviewBody)attachmentPreviewBody.innerHTML=attachmentPreviewHtml(a)
+  }catch(error){
+    if(attachmentPreviewBody)attachmentPreviewBody.innerHTML=`<div class="attachment-no-preview"><strong>Unable to load attachment</strong><span>${esc(error.message||'Try again.')}</span></div>`
+  }
+}
+async function downloadAttachment(index){
+  try{
+    const a=await ensureAttachmentData(index)
+    if(!a?.dataUrl)return
+    const link=document.createElement('a')
+    link.href=a.dataUrl
+    link.download=safeAttachmentName(a.filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }catch(error){alert(error.message||'Unable to download attachment.')}
 }
 function renderMessageAttachments(message){
   const items=message?.attachments||[]
@@ -910,28 +934,53 @@ function renderMessageAttachments(message){
 }
 
 
+function messageCacheKey(mailbox,folder,uid){
+  return `dfl_opened_message_v1:${session.user.id}:${mailbox}:${folder}:${uid}`
+}
+function getCachedMessage(mailbox,folder,uid){
+  try{
+    const raw=localStorage.getItem(messageCacheKey(mailbox,folder,uid))
+    if(!raw)return null
+    const cached=JSON.parse(raw)
+    return cached&&String(cached.uid)===String(uid)?cached:null
+  }catch{return null}
+}
+function saveMessageCache(message){
+  if(!activeAccount||!message?.uid)return
+  const folder=message.sourceFolder||messageFolder(message.uid)||activeFolder
+  try{
+    const clean={...message,attachments:(message.attachments||[]).map(a=>({
+      filename:a.filename||'Attachment',
+      mimeType:a.mimeType||'application/octet-stream',
+      contentId:a.contentId||'',
+      size:Number(a.size)||0
+    }))}
+    localStorage.setItem(messageCacheKey(activeAccount.email,folder,message.uid),JSON.stringify(clean))
+  }catch{}
+}
 async function loadThreadConversation(message){
   const key=normalizeThreadSubject(message.subject)
   const rows=currentMessages
     .filter(row=>normalizeThreadSubject(row.subject)===key)
     .slice(0,10)
-  const full=[]
-  for(const row of rows){
-    if(String(row.uid)===String(message.uid)){
-      full.push(message)
-      continue
-    }
+  const loaded=await Promise.all(rows.map(async row=>{
+    if(String(row.uid)===String(message.uid))return message
+    const folder=row.sourceFolder||activeFolder
+    const cached=getCachedMessage(activeAccount.email,folder,row.uid)
+    if(cached)return {...cached,sourceFolder:folder}
     try{
       const item=await callMailFunction({
         action:'get',
-        folder:row.sourceFolder||activeFolder,
+        folder,
         uid:String(row.uid),
         mailbox_email:activeAccount.email
       })
-      item.sourceFolder=row.sourceFolder||activeFolder
-      full.push(item)
-    }catch{}
-  }
+      item.sourceFolder=folder
+      saveMessageCache(item)
+      return item
+    }catch{return null}
+  }))
+  const full=loaded.filter(Boolean)
   if(!full.some(item=>String(item.uid)===String(message.uid)))full.push(message)
   full.sort((a,b)=>new Date(a.date||0)-new Date(b.date||0))
   return full
@@ -952,80 +1001,88 @@ function renderThreadConversation(messages,active){
       </article>`).join('')}
   </section>`
 }
-
-async function loadMessage(uid){
+function wireReaderActions(message,sourceFolder){
+  document.getElementById('replyMessageBtn')?.addEventListener('click',()=>openReplyComposer(message))
+  document.getElementById('replyAllMessageBtn')?.addEventListener('click',()=>openReplyAllComposer(message))
+  document.getElementById('forwardMessageBtn')?.addEventListener('click',()=>openForwardComposer(message))
+  document.getElementById('readMessageBtn')?.addEventListener('click',()=>toggleActiveReadState())
+  document.getElementById('starMessageBtn')?.addEventListener('click',()=>toggleActiveStar())
+  document.getElementById('archiveMessageBtn')?.addEventListener('click',archiveActiveMessage)
+  document.getElementById('spamMessageBtn')?.addEventListener('click',()=>moveActiveMessage('Junk'))
+  document.getElementById('deleteMessageBtn')?.addEventListener('click',deleteActiveMessage)
+  readerPanel.querySelectorAll('[data-preview-attachment]').forEach(btn=>btn.addEventListener('click',()=>openAttachmentPreview(btn.dataset.previewAttachment)))
+  readerPanel.querySelectorAll('[data-download-attachment]').forEach(btn=>btn.addEventListener('click',()=>downloadAttachment(btn.dataset.downloadAttachment)))
+  document.getElementById('mobileReaderBack')?.addEventListener('click',closeMobileReader)
+}
+function renderLoadedMessage(message,threadMessages=[message],{preserveScroll=false}={}){
+  if(!readerPanel||!message)return
+  const sourceFolder=message.sourceFolder||messageFolder(message.uid)||activeFolder
+  const previousScroll=preserveScroll?readerPanel.scrollTop:0
+  readerPanel.innerHTML=`<article class="reader reader-rich">
+    <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
+    <div class="message-actions">
+      <div class="message-action-row message-action-row-primary">
+        <button type="button" class="message-action-btn" id="replyMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a6 6 0 0 0-6-6H4"/></svg><span>Reply</span></button>
+        <button type="button" class="message-action-btn" id="replyAllMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 17-5-5 5-5"/><path d="m12 17-5-5 5-5"/><path d="M22 18v-2a6 6 0 0 0-6-6H7"/></svg><span>Reply all</span></button>
+        <button type="button" class="message-action-btn" id="forwardMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 17 5-5-5-5"/><path d="M4 18v-2a6 6 0 0 1 6-6h10"/></svg><span>Forward</span></button>
+        <button type="button" class="message-action-btn" id="readMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg><span>${message.seen===false?'Mark read':'Mark unread'}</span></button>
+        <button type="button" class="message-action-btn" id="starMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3z"/></svg><span>${message.flagged?'Unstar':'Star'}</span></button>
+      </div>
+      <div class="message-action-row message-action-row-secondary">
+        ${sourceFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3z"/><path d="M9 11h6"/></svg><span>Archive</span></button>':''}
+        ${sourceFolder!=='Junk'?'<button type="button" class="message-action-btn" id="spamMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V6l-8-3z"/><path d="M12 8v5"/><path d="M12 17h.01"/></svg><span>Spam</span></button>':''}
+        <span class="message-action-divider" aria-hidden="true"></span>
+        <button type="button" class="message-action-btn danger" id="deleteMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m7 7 1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></svg><span>${sourceFolder==='Trash'?'Delete forever':'Delete'}</span></button>
+      </div>
+    </div>
+    <div class="eyebrow dark">Message</div>
+    <h2>${esc(message.subject||'(No subject)')}</h2>
+    <div class="reader-meta">From: ${esc(message.sender||message.from||'')}<br>To: ${esc(message.to||activeAccount.email)}<br>${esc(formatFullDate(message.date))}</div>
+    ${renderThreadConversation(threadMessages,message)}
+    ${renderMessageAttachments(message)}
+  </article>`
+  wireReaderActions(message,sourceFolder)
+  if(window.matchMedia('(max-width:900px)').matches)readerPanel.classList.add('mobile-open')
+  readerPanel.scrollTop=preserveScroll?previousScroll:0
+}
+async function loadMessage(uid,{sourceFolderOverride=''}={}){
+  activeMessageId=uid
+  const sourceFolder=sourceFolderOverride||messageFolder(uid)||activeFolder
+  const cached=getCachedMessage(activeAccount.email,sourceFolder,uid)
+  if(cached){
+    cached.sourceFolder=sourceFolder
+    activeMessage=cached
+    saveOpenMessage()
+    renderLoadedMessage(cached,[cached])
+  }else{
+    renderReaderSkeleton()
+  }
   try{
-    activeMessageId=uid
-    const sourceFolder=messageFolder(uid)
     const m=await callMailFunction({action:'get',folder:sourceFolder,uid,mailbox_email:activeAccount.email})
     m.sourceFolder=sourceFolder
+    if(String(activeMessageId)!==String(uid))return
     activeMessage=m
     saveOpenMessage()
-    const threadMessages=await loadThreadConversation(m)
-    readerPanel.innerHTML=`<article class="reader reader-rich">
-      <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
-      <div class="message-actions">
-        <div class="message-action-row message-action-row-primary">
-          <button type="button" class="message-action-btn" id="replyMessageBtn">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a6 6 0 0 0-6-6H4"/></svg>
-            <span>Reply</span>
-          </button>
-          <button type="button" class="message-action-btn" id="replyAllMessageBtn">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 17-5-5 5-5"/><path d="m12 17-5-5 5-5"/><path d="M22 18v-2a6 6 0 0 0-6-6H7"/></svg>
-            <span>Reply all</span>
-          </button>
-          <button type="button" class="message-action-btn" id="forwardMessageBtn">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 17 5-5-5-5"/><path d="M4 18v-2a6 6 0 0 1 6-6h10"/></svg>
-            <span>Forward</span>
-          </button>
-          <button type="button" class="message-action-btn" id="readMessageBtn">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
-            <span>${m.seen===false?'Mark read':'Mark unread'}</span>
-          </button>
-          <button type="button" class="message-action-btn" id="starMessageBtn">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3z"/></svg>
-            <span>${m.flagged?'Unstar':'Star'}</span>
-          </button>
-        </div>
-        <div class="message-action-row message-action-row-secondary">
-          ${sourceFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3z"/><path d="M9 11h6"/></svg><span>Archive</span></button>':''}
-          ${sourceFolder!=='Junk'?'<button type="button" class="message-action-btn" id="spamMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V6l-8-3z"/><path d="M12 8v5"/><path d="M12 17h.01"/></svg><span>Spam</span></button>':''}
-          <span class="message-action-divider" aria-hidden="true"></span>
-          <button type="button" class="message-action-btn danger" id="deleteMessageBtn">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m7 7 1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></svg>
-            <span>${sourceFolder==='Trash'?'Delete forever':'Delete'}</span>
-          </button>
-        </div>
-      </div>
-      <div class="eyebrow dark">Message</div>
-      <h2>${esc(m.subject||'(No subject)')}</h2>
-      <div class="reader-meta">From: ${esc(m.sender||m.from||'')}<br>To: ${esc(m.to||activeAccount.email)}<br>${esc(formatFullDate(m.date))}</div>
-      ${renderThreadConversation(threadMessages,m)}
-      ${renderMessageAttachments(m)}
-    </article>`
-    document.getElementById('replyMessageBtn')?.addEventListener('click',()=>openReplyComposer(m))
-    document.getElementById('replyAllMessageBtn')?.addEventListener('click',()=>openReplyAllComposer(m))
-    document.getElementById('forwardMessageBtn')?.addEventListener('click',()=>openForwardComposer(m))
-    document.getElementById('readMessageBtn')?.addEventListener('click',()=>toggleActiveReadState())
-    document.getElementById('starMessageBtn')?.addEventListener('click',()=>toggleActiveStar())
-    document.getElementById('archiveMessageBtn')?.addEventListener('click',archiveActiveMessage)
-    document.getElementById('spamMessageBtn')?.addEventListener('click',()=>moveActiveMessage('Junk'))
-    document.getElementById('deleteMessageBtn')?.addEventListener('click',deleteActiveMessage)
-    readerPanel.querySelectorAll('[data-preview-attachment]').forEach(btn=>btn.addEventListener('click',()=>openAttachmentPreview(btn.dataset.previewAttachment)))
-    readerPanel.querySelectorAll('[data-download-attachment]').forEach(btn=>btn.addEventListener('click',()=>downloadAttachment(btn.dataset.downloadAttachment)))
+    saveMessageCache(m)
+    renderLoadedMessage(m,[m],{preserveScroll:!!cached})
     if(m.seen===false){
       callMailFunction({action:'mark_read',folder:sourceFolder,uid,mailbox_email:activeAccount.email}).then(()=>{
-        const row=currentMessages.find(x=>String(x.uid)===String(uid));if(row)row.seen=true;renderMessages()
+        const row=currentMessages.find(x=>String(x.uid)===String(uid))
+        if(row)row.seen=true
+        if(activeMessage&&String(activeMessage.uid)===String(uid))activeMessage.seen=true
+        renderMessages()
       }).catch(()=>{})
     }
-    if(window.matchMedia('(max-width:900px)').matches){
-      readerPanel.classList.add('mobile-open')
-      readerPanel.scrollTop=0
+    loadThreadConversation(m).then(threadMessages=>{
+      if(String(activeMessageId)===String(uid)&&threadMessages.length>1){
+        renderLoadedMessage(m,threadMessages,{preserveScroll:true})
+      }
+    }).catch(()=>{})
+  }catch(error){
+    if(!cached&&String(activeMessageId)===String(uid)){
+      readerPanel.innerHTML=`<div class="empty-reader"><strong>Unable to open email</strong><span>${esc(error.message||'Try again.')}</span></div>`
+      if(window.matchMedia('(max-width:900px)').matches)readerPanel.classList.add('mobile-open')
     }
-    document.getElementById('mobileReaderBack')?.addEventListener('click',closeMobileReader)
-  }catch(e){
-    readerPanel.innerHTML=`<div class="empty-reader"><strong>Unable to open email</strong><span>${esc(e.message)}</span></div>`
-    if(window.matchMedia('(max-width:900px)').matches)readerPanel.classList.add('mobile-open')
   }
 }
 function closeMobileReader(){
@@ -1181,7 +1238,7 @@ function openReplyAllComposer(message){
     body:quotedText(message)
   })
 }
-function openForwardComposer(message){
+async function openForwardComposer(message){
   const original=String(message.body||'').trim()
   const forwarded=[
     '',
@@ -1194,11 +1251,17 @@ function openForwardComposer(message){
     '',
     original
   ].join('\n')
+  let attachments=[]
+  try{
+    attachments=await Promise.all((message.attachments||[]).map((_,i)=>ensureAttachmentData(i)))
+  }catch(error){
+    if((message.attachments||[]).length&&!confirm('One or more attachments could not be loaded. Forward without attachments?'))return
+  }
   setComposeValues({
     to:'',
     subject:forwardSubject(message.subject),
     body:forwarded,
-    attachments:(message.attachments||[]).map(a=>({...a}))
+    attachments
   })
 }
 
