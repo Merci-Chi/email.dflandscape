@@ -5,11 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#0f2617">
   <title>Desert Forest Landscape Mailbox</title>
-  <link rel="stylesheet" href="styles.css?v=admin-hidden-fix-1">
+  <link rel="stylesheet" href="styles.css?v=mobile-drawer-1">
 </head>
 <body class="mail-page">
   <header class="topbar">
     <div class="topbar-left">
+      <button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-label="Open menu" aria-controls="mailSidebar" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
       <img class="topbar-main-logo" src="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/logo.png" alt="Desert Forest Landscape logo">
       <a class="topbar-brand" href="https://dflandscape.com" aria-label="Desert Forest Landscape home">
         <div class="topbar-brand-images">
@@ -27,7 +30,12 @@
     </div>
   </header>
   <main class="mail-shell">
-    <aside class="sidebar">
+    <div class="mobile-menu-overlay" id="mobileMenuOverlay" hidden></div>
+    <aside class="sidebar" id="mailSidebar" aria-label="Mailbox navigation">
+      <div class="mobile-sidebar-head">
+        <strong>Menu</strong>
+        <button class="mobile-menu-close" id="mobileMenuClose" type="button" aria-label="Close menu">×</button>
+      </div>
       <button class="compose" id="composeBtn">
         <span class="btn-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -159,6 +167,6 @@
     </form>
   </div>
 
-  <script type="module" src="mail.js?v=supabase-admin-role-1"></script>
+  <script type="module" src="mail.js?v=mobile-drawer-1"></script>
 </body>
 </html>
