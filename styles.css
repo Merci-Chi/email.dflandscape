@@ -430,9 +430,6 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
 .message-select.show{width:38px}
 .selection-dot{width:21px;height:21px;border:1.5px solid #91a091;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:900;color:#fff}
 .message-row-wrap.selected .selection-dot{background:#31573a;border-color:#31573a}
-@media(hover:hover) and (pointer:fine){
-  .message-row-wrap:hover .message-select{width:38px}
-}
 @media(max-width:650px){
   .bulk-toolbar{top:64px;position:sticky;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
   .bulk-actions{flex-wrap:nowrap}
