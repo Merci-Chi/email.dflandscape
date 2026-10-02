@@ -9,10 +9,12 @@ const {data:{session}}=await supabase.auth.getSession()
 if(!session?.user){location.replace('index.html');throw new Error('Not authenticated')}
 
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
+let selectedIds=new Set(),selectionMode=false,longPressTimer=null
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
 const manageEmailsLink=document.getElementById('manageEmailsLink')
+const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn')
 async function callMailFunction(payload){
   const {data:{session:s}}=await supabase.auth.getSession()
   const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${s.access_token}`,'apikey':SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify(payload)})
@@ -56,18 +58,144 @@ async function loadMessages(){
 function renderMessages(){
   const q=(searchInput?.value||'').trim().toLowerCase()
   const msgs=currentMessages.filter(m=>!q||`${m.sender} ${m.from} ${m.subject}`.toLowerCase().includes(q))
-  messageList.innerHTML=msgs.length?msgs.map(m=>`<div class="message-row-wrap ${m.seen===false?'unread':''}">
-    <button class="message-star ${m.flagged?'active':''}" data-star-id="${esc(m.uid)}" type="button" aria-label="${m.flagged?'Unstar':'Star'} message">★</button>
-    <button class="message-row ${m.seen===false?'unread':''}" data-id="${esc(m.uid)}">
-      <span class="sender">${esc(m.sender||m.from)}</span>
-      <span class="time">${esc(formatDate(m.date))}</span>
-      <span class="subject">${esc(m.subject||'(No subject)')}</span>
-      <span class="snippet">${esc(m.from||'')}</span>
-    </button>
-  </div>`).join(''):'<div class="empty-reader" style="height:220px"><strong>No messages</strong><span>This folder is empty.</span></div>'
-  messageList.querySelectorAll('[data-id]').forEach(r=>r.onclick=()=>loadMessage(r.dataset.id))
-  messageList.querySelectorAll('[data-star-id]').forEach(btn=>btn.onclick=async e=>{e.stopPropagation();await toggleMessageFlag(btn.dataset.starId)})
+  messageList.innerHTML=msgs.length?msgs.map(m=>{
+    const selected=selectedIds.has(String(m.uid))
+    return `<div class="message-swipe-shell" data-shell-id="${esc(m.uid)}">
+      <div class="swipe-action swipe-action-read">${m.seen===false?'Read':'Unread'}</div>
+      <div class="swipe-action swipe-action-delete">Delete</div>
+      <div class="message-row-wrap ${m.seen===false?'unread':''} ${selected?'selected':''}" data-wrap-id="${esc(m.uid)}">
+        <button class="message-select ${selectionMode?'show':''}" data-select-id="${esc(m.uid)}" type="button" aria-label="${selected?'Deselect':'Select'} message">
+          <span class="selection-dot">${selected?'✓':''}</span>
+        </button>
+        <button class="message-star ${m.flagged?'active':''}" data-star-id="${esc(m.uid)}" type="button" aria-label="${m.flagged?'Unstar':'Star'} message">★</button>
+        <button class="message-row ${m.seen===false?'unread':''}" data-id="${esc(m.uid)}">
+          <span class="sender">${esc(m.sender||m.from)}</span>
+          <span class="time">${esc(formatDate(m.date))}</span>
+          <span class="subject">${esc(m.subject||'(No subject)')}</span>
+          <span class="snippet">${esc(m.from||'')}</span>
+        </button>
+      </div>
+    </div>`
+  }).join(''):'<div class="empty-reader" style="height:220px"><strong>No messages</strong><span>This folder is empty.</span></div>'
+
+  messageList.querySelectorAll('[data-id]').forEach(r=>r.onclick=e=>{
+    if(selectionMode){e.preventDefault();toggleSelected(r.dataset.id);return}
+    loadMessage(r.dataset.id)
+  })
+  messageList.querySelectorAll('[data-star-id]').forEach(btn=>btn.onclick=async e=>{e.stopPropagation();if(selectionMode){toggleSelected(btn.dataset.starId);return}await toggleMessageFlag(btn.dataset.starId)})
+  messageList.querySelectorAll('[data-select-id]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();toggleSelected(btn.dataset.selectId)})
+  attachLongPressHandlers()
+  attachMessageSwipeHandlers()
+  updateBulkToolbar()
 }
+
+function visibleMessageIds(){
+  const q=(searchInput?.value||'').trim().toLowerCase()
+  return currentMessages.filter(m=>!q||`${m.sender} ${m.from} ${m.subject}`.toLowerCase().includes(q)).map(m=>String(m.uid))
+}
+function enterSelectionMode(uid){
+  selectionMode=true
+  if(uid)selectedIds.add(String(uid))
+  renderMessages()
+}
+function exitSelectionMode(){
+  selectionMode=false
+  selectedIds.clear()
+  renderMessages()
+}
+function toggleSelected(uid){
+  const id=String(uid)
+  selectionMode=true
+  if(selectedIds.has(id))selectedIds.delete(id)
+  else selectedIds.add(id)
+  if(!selectedIds.size)selectionMode=false
+  renderMessages()
+}
+function updateBulkToolbar(){
+  if(!bulkToolbar)return
+  bulkToolbar.hidden=!selectionMode
+  if(bulkCount)bulkCount.textContent=`${selectedIds.size} selected`
+  if(bulkSelectAllBtn){
+    const ids=visibleMessageIds()
+    bulkSelectAllBtn.textContent=ids.length&&ids.every(id=>selectedIds.has(id))?'Clear all':'Select all'
+  }
+}
+function attachLongPressHandlers(){
+  messageList.querySelectorAll('[data-wrap-id]').forEach(wrap=>{
+    const uid=wrap.dataset.wrapId
+    let moved=false
+    wrap.addEventListener('touchstart',()=>{
+      moved=false
+      clearTimeout(longPressTimer)
+      longPressTimer=setTimeout(()=>{if(!moved)enterSelectionMode(uid)},500)
+    },{passive:true})
+    wrap.addEventListener('touchmove',()=>{moved=true;clearTimeout(longPressTimer)},{passive:true})
+    wrap.addEventListener('touchend',()=>clearTimeout(longPressTimer),{passive:true})
+    wrap.addEventListener('touchcancel',()=>clearTimeout(longPressTimer),{passive:true})
+  })
+}
+function attachMessageSwipeHandlers(){
+  messageList.querySelectorAll('[data-shell-id]').forEach(shell=>{
+    let sx=0,sy=0,lx=0,ly=0,tracking=false
+    const row=shell.querySelector('.message-row-wrap')
+    shell.addEventListener('touchstart',e=>{
+      if(selectionMode||e.touches.length!==1)return
+      const t=e.touches[0];sx=lx=t.clientX;sy=ly=t.clientY;tracking=true
+    },{passive:true})
+    shell.addEventListener('touchmove',e=>{
+      if(!tracking||e.touches.length!==1)return
+      const t=e.touches[0];lx=t.clientX;ly=t.clientY
+      const dx=lx-sx,dy=ly-sy
+      if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)){
+        row.style.transform=`translateX(${Math.max(-88,Math.min(88,dx))}px)`
+      }
+    },{passive:true})
+    shell.addEventListener('touchend',async e=>{
+      if(!tracking)return
+      tracking=false
+      const t=e.changedTouches?.[0],dx=(t?.clientX??lx)-sx,dy=(t?.clientY??ly)-sy
+      row.style.transform=''
+      if(Math.abs(dx)<65||Math.abs(dx)<=Math.abs(dy)*1.15)return
+      const uid=shell.dataset.shellId
+      if(dx>0){
+        const m=currentMessages.find(x=>String(x.uid)===String(uid))
+        const action=m?.seen===false?'mark_read':'mark_unread'
+        try{await setMessageState(action,uid);if(m)m.seen=action==='mark_read';renderMessages()}catch(err){alert(err.message||'Unable to update message.')}
+      }else{
+        if(activeFolder==='Trash'){
+          if(!confirm('Permanently delete this email?'))return
+        }
+        try{await callMailFunction({action:'delete',folder:activeFolder,uid,mailbox_email:activeAccount.email});currentMessages=currentMessages.filter(x=>String(x.uid)!==String(uid));selectedIds.delete(String(uid));renderMessages()}catch(err){alert(err.message||'Unable to delete email.')}
+      }
+    },{passive:true})
+  })
+}
+async function runBulkAction(action){
+  const ids=[...selectedIds]
+  if(!ids.length)return
+  const permanent=action==='delete'&&activeFolder==='Trash'
+  if(action==='delete'&&!confirm(permanent?'Permanently delete selected emails?':'Move selected emails to Trash?'))return
+  setBulkBusy(true)
+  try{
+    for(const uid of ids){
+      await callMailFunction({action,folder:activeFolder,uid,mailbox_email:activeAccount.email})
+      const row=currentMessages.find(x=>String(x.uid)===String(uid))
+      if(action==='mark_read'&&row)row.seen=true
+      if(action==='mark_unread'&&row)row.seen=false
+      if(action==='star'&&row)row.flagged=true
+      if(action==='unstar'&&row)row.flagged=false
+      if(action==='delete'||action==='archive')currentMessages=currentMessages.filter(x=>String(x.uid)!==String(uid))
+    }
+    exitSelectionMode()
+  }catch(error){
+    alert(error.message||'Unable to update selected emails.')
+    renderMessages()
+  }finally{setBulkBusy(false)}
+}
+function setBulkBusy(busy){
+  bulkToolbar?.querySelectorAll('button').forEach(btn=>btn.disabled=busy)
+}
+
 async function loadMessage(uid){
   try{
     activeMessageId=uid
@@ -263,6 +391,20 @@ function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt
 function formatDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString([],{month:'short',day:'numeric'})}
 function formatFullDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString()}
 searchInput?.addEventListener('input',renderMessages)
+document.getElementById('bulkCloseBtn')?.addEventListener('click',exitSelectionMode)
+document.getElementById('bulkSelectAllBtn')?.addEventListener('click',()=>{
+  const ids=visibleMessageIds()
+  const allSelected=ids.length&&ids.every(id=>selectedIds.has(id))
+  if(allSelected)ids.forEach(id=>selectedIds.delete(id));else ids.forEach(id=>selectedIds.add(id))
+  selectionMode=selectedIds.size>0
+  renderMessages()
+})
+document.getElementById('bulkReadBtn')?.addEventListener('click',()=>runBulkAction('mark_read'))
+document.getElementById('bulkUnreadBtn')?.addEventListener('click',()=>runBulkAction('mark_unread'))
+document.getElementById('bulkStarBtn')?.addEventListener('click',()=>runBulkAction('star'))
+document.getElementById('bulkUnstarBtn')?.addEventListener('click',()=>runBulkAction('unstar'))
+document.getElementById('bulkArchiveBtn')?.addEventListener('click',()=>runBulkAction('archive'))
+document.getElementById('bulkDeleteBtn')?.addEventListener('click',()=>runBulkAction('delete'))
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{activeFolder=btn.dataset.folder||'Inbox';document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn));await loadMessages();closeMobileMenu()}))
 document.getElementById('refreshBtn')?.addEventListener('click',loadMessages)
 document.getElementById('composeBtn')?.addEventListener('click',()=>{renderComposeAccounts();composeModal?.classList.remove('hidden');closeMobileMenu()})
@@ -313,7 +455,8 @@ document.addEventListener('touchstart',e=>{
   const sidebarOpen=mailSidebar?.classList.contains('mobile-open')
   const startedInLeftZone=touchStartX<=SWIPE_START_ZONE
 
-  trackingHorizontalSwipe=readerOpen||sidebarOpen||startedInLeftZone
+  const insideMessageRow=!!e.target.closest?.('.message-swipe-shell')
+  trackingHorizontalSwipe=!insideMessageRow&&(readerOpen||sidebarOpen||startedInLeftZone)
 },{passive:true})
 
 document.addEventListener('touchmove',e=>{
