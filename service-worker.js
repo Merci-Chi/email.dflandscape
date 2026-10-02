@@ -1,10 +1,5 @@
-const CACHE_NAME = 'dfl-email-speed-20-1'
+const CACHE_NAME = 'dfl-email-no-stale-pages-1'
 const APP_SHELL = [
-  '/',
-  '/index.html',
-  '/mail.html',
-  '/settings.html',
-  '/manage-emails.html',
   '/styles.css',
   '/app.js',
   '/mail.js',
@@ -46,10 +41,23 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
 
+  if (request.mode === 'navigate' || request.destination === 'document' || /\.html$/.test(url.pathname)) {
+    event.respondWith((async () => {
+      try {
+        return await fetch(new Request(request, { cache: 'no-store' }))
+      } catch {
+        return new Response(
+          '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline</title><body style="font-family:system-ui;padding:24px">You are offline. Reconnect and refresh to load this page.</body>',
+          { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 503 }
+        )
+      }
+    })())
+    return
+  }
+
   const isAppAsset =
-    request.mode === 'navigate' ||
-    ['document', 'script', 'style', 'manifest', 'image'].includes(request.destination) ||
-    /\.(?:html|js|css|json|png|jpg|jpeg|webp|svg)$/.test(url.pathname)
+    ['script', 'style', 'manifest', 'image'].includes(request.destination) ||
+    /\.(?:js|css|json|png|jpg|jpeg|webp|svg)$/.test(url.pathname)
 
   if (!isAppAsset) return
 
@@ -57,20 +65,13 @@ self.addEventListener('fetch', event => {
     const cache = await caches.open(CACHE_NAME)
 
     try {
-      const freshRequest = new Request(request, { cache: 'no-store' })
-      const response = await fetch(freshRequest)
-
+      const response = await fetch(new Request(request, { cache: 'no-store' }))
       if (response && response.ok) {
-        cache.put(request, response.clone()).catch(() => {})
+        cache.put(url.pathname, response.clone()).catch(() => {})
       }
-
       return response
     } catch (error) {
-      const cached =
-        await cache.match(request) ||
-        await cache.match(url.pathname) ||
-        (request.mode === 'navigate' ? await cache.match('/mail.html') : null)
-
+      const cached = await cache.match(request) || await cache.match(url.pathname)
       if (cached) return cached
       throw error
     }
@@ -79,10 +80,7 @@ self.addEventListener('fetch', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close()
-
-  const target =
-    event.notification?.data?.url ||
-    '/mail.html'
+  const target = event.notification?.data?.url || '/mail.html'
 
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({
