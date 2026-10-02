@@ -377,3 +377,16 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
     background:#eef3ee
   }
 }
+
+
+/* Message actions */
+.message-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.message-action-btn{border:1px solid #cfd8cf;background:#fff;color:#27402c;border-radius:8px;padding:9px 12px;font-weight:800;font-size:12px}
+.message-action-btn:hover{background:#f0f4f0}
+.message-action-btn.danger{color:#8d342e;border-color:#dfc2bf}
+.message-action-btn.danger:hover{background:#fbefee}
+.message-action-btn:disabled{opacity:.6;cursor:wait}
+@media(max-width:650px){
+  .message-actions{position:sticky;top:0;z-index:3;background:#fff;padding:6px 0 10px;margin-bottom:12px}
+  .message-action-btn{flex:1;min-width:90px;min-height:42px}
+}
