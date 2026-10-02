@@ -879,14 +879,6 @@ async function loadMessage(uid){
         <div class="message-action-row message-action-row-secondary">
           ${sourceFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3z"/><path d="M9 11h6"/></svg><span>Archive</span></button>':''}
           ${sourceFolder!=='Junk'?'<button type="button" class="message-action-btn" id="spamMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V6l-8-3z"/><path d="M12 8v5"/><path d="M12 17h.01"/></svg><span>Spam</span></button>':''}
-          <label class="message-select-action" title="Snooze">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-            <select id="snoozeMessageSelect" aria-label="Snooze message"><option value="">Snooze</option><option value="1h">1 hour</option><option value="tomorrow">Tomorrow at 9 AM</option><option value="3d">3 days</option><option value="1w">1 week</option></select>
-          </label>
-          <label class="message-select-action" title="Move">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/><path d="m16 13 2 2 2-2"/></svg>
-            <select id="moveMessageSelect" aria-label="Move message"><option value="">Move</option><option value="Inbox">Inbox</option><option value="Archive">Archive</option><option value="Junk">Spam</option><option value="Trash">Trash</option></select>
-          </label>
           <span class="message-action-divider" aria-hidden="true"></span>
           <button type="button" class="message-action-btn danger" id="deleteMessageBtn">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m7 7 1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></svg>
@@ -907,8 +899,6 @@ async function loadMessage(uid){
     document.getElementById('starMessageBtn')?.addEventListener('click',()=>toggleActiveStar())
     document.getElementById('archiveMessageBtn')?.addEventListener('click',archiveActiveMessage)
     document.getElementById('spamMessageBtn')?.addEventListener('click',()=>moveActiveMessage('Junk'))
-    document.getElementById('snoozeMessageSelect')?.addEventListener('change',e=>{if(e.target.value)snoozeActiveMessage(e.target.value)})
-    document.getElementById('moveMessageSelect')?.addEventListener('change',e=>{if(e.target.value)moveActiveMessage(e.target.value)})
     document.getElementById('deleteMessageBtn')?.addEventListener('click',deleteActiveMessage)
     readerPanel.querySelectorAll('[data-preview-attachment]').forEach(btn=>btn.addEventListener('click',()=>openAttachmentPreview(btn.dataset.previewAttachment)))
     readerPanel.querySelectorAll('[data-download-attachment]').forEach(btn=>btn.addEventListener('click',()=>downloadAttachment(btn.dataset.downloadAttachment)))
