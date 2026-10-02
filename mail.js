@@ -854,16 +854,45 @@ async function loadMessage(uid){
     readerPanel.innerHTML=`<article class="reader reader-rich">
       <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
       <div class="message-actions">
-        <button type="button" class="message-action-btn" id="replyMessageBtn">Reply</button>
-        <button type="button" class="message-action-btn" id="replyAllMessageBtn">Reply all</button>
-        <button type="button" class="message-action-btn" id="forwardMessageBtn">Forward</button>
-        <button type="button" class="message-action-btn" id="readMessageBtn">${m.seen===false?'Mark read':'Mark unread'}</button>
-        <button type="button" class="message-action-btn" id="starMessageBtn">${m.flagged?'Unstar':'Star'}</button>
-        ${sourceFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn">Archive</button>':''}
-        ${sourceFolder!=='Junk'?'<button type="button" class="message-action-btn" id="spamMessageBtn">Spam</button>':''}
-        <select class="message-move-select" id="snoozeMessageSelect" aria-label="Snooze message"><option value="">Snooze…</option><option value="1h">1 hour</option><option value="tomorrow">Tomorrow at 9 AM</option><option value="3d">3 days</option><option value="1w">1 week</option></select>
-        <select class="message-move-select" id="moveMessageSelect" aria-label="Move message"><option value="">Move to…</option><option value="Inbox">Inbox</option><option value="Archive">Archive</option><option value="Junk">Spam</option><option value="Trash">Trash</option></select>
-        <button type="button" class="message-action-btn danger" id="deleteMessageBtn">${sourceFolder==='Trash'?'Delete forever':'Delete'}</button>
+        <div class="message-action-row message-action-row-primary">
+          <button type="button" class="message-action-btn" id="replyMessageBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a6 6 0 0 0-6-6H4"/></svg>
+            <span>Reply</span>
+          </button>
+          <button type="button" class="message-action-btn" id="replyAllMessageBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 17-5-5 5-5"/><path d="m12 17-5-5 5-5"/><path d="M22 18v-2a6 6 0 0 0-6-6H7"/></svg>
+            <span>Reply all</span>
+          </button>
+          <button type="button" class="message-action-btn" id="forwardMessageBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 17 5-5-5-5"/><path d="M4 18v-2a6 6 0 0 1 6-6h10"/></svg>
+            <span>Forward</span>
+          </button>
+          <button type="button" class="message-action-btn" id="readMessageBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
+            <span>${m.seen===false?'Mark read':'Mark unread'}</span>
+          </button>
+          <button type="button" class="message-action-btn" id="starMessageBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3z"/></svg>
+            <span>${m.flagged?'Unstar':'Star'}</span>
+          </button>
+        </div>
+        <div class="message-action-row message-action-row-secondary">
+          ${sourceFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3z"/><path d="M9 11h6"/></svg><span>Archive</span></button>':''}
+          ${sourceFolder!=='Junk'?'<button type="button" class="message-action-btn" id="spamMessageBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V6l-8-3z"/><path d="M12 8v5"/><path d="M12 17h.01"/></svg><span>Spam</span></button>':''}
+          <label class="message-select-action" title="Snooze">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <select id="snoozeMessageSelect" aria-label="Snooze message"><option value="">Snooze</option><option value="1h">1 hour</option><option value="tomorrow">Tomorrow at 9 AM</option><option value="3d">3 days</option><option value="1w">1 week</option></select>
+          </label>
+          <label class="message-select-action" title="Move">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/><path d="m16 13 2 2 2-2"/></svg>
+            <select id="moveMessageSelect" aria-label="Move message"><option value="">Move</option><option value="Inbox">Inbox</option><option value="Archive">Archive</option><option value="Junk">Spam</option><option value="Trash">Trash</option></select>
+          </label>
+          <span class="message-action-divider" aria-hidden="true"></span>
+          <button type="button" class="message-action-btn danger" id="deleteMessageBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m7 7 1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></svg>
+            <span>${sourceFolder==='Trash'?'Delete forever':'Delete'}</span>
+          </button>
+        </div>
       </div>
       <div class="eyebrow dark">Message</div>
       <h2>${esc(m.subject||'(No subject)')}</h2>
