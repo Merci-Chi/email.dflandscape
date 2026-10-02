@@ -475,6 +475,7 @@ async function loadMessages({reset=true}={}){
     currentMessages=reset?pageMessages:[...currentMessages,...pageMessages]
     mailHasMore=Array.isArray(result)?false:result?.hasMore===true
     mailPage+=1
+    await loadSnoozedState()
     renderMessages()
     updateLoadMore()
     if(reset)saveMailboxSnapshot()
@@ -504,29 +505,45 @@ function filteredMessages(){
   const filter=mailFilter?.value||'all'
   return currentMessages.filter(m=>{
     if(activeFolder==='Starred'&&m.flagged!==true)return false
+    if(activeAccount&&snoozedMessageKeys.has(snoozedKey(activeAccount.email,m.sourceFolder||activeFolder,m.uid)))return false
     if(filter==='unread'&&m.seen!==false)return false
     if(filter==='starred'&&m.flagged!==true)return false
     if(filter==='attachments'&&m.hasAttachments!==true)return false
     return true
   })
 }
-function renderMessages(){
+function groupedMessages(){
   const msgs=filteredMessages()
-  messageList.innerHTML=msgs.length?msgs.map(m=>{
+  const groups=new Map()
+  for(const message of msgs){
+    const key=normalizeThreadSubject(message.subject)
+    if(!groups.has(key))groups.set(key,[])
+    groups.get(key).push(message)
+  }
+  return [...groups.values()].map(thread=>{
+    thread.sort((a,b)=>new Date(b.date||0)-new Date(a.date||0))
+    return {latest:thread[0],messages:thread,count:thread.length}
+  }).sort((a,b)=>new Date(b.latest.date||0)-new Date(a.latest.date||0))
+}
+function renderMessages(){
+  const threads=groupedMessages()
+  messageList.innerHTML=threads.length?threads.map(thread=>{
+    const m=thread.latest
     const selected=selectedIds.has(String(m.uid))
+    const unread=thread.messages.some(x=>x.seen===false)
     return `<div class="message-swipe-shell" data-shell-id="${esc(m.uid)}">
       <div class="swipe-action swipe-action-read">${m.seen===false?'Read':'Unread'}</div>
       <div class="swipe-action swipe-action-delete">Delete</div>
-      <div class="message-row-wrap ${m.seen===false?'unread':''} ${selected?'selected':''}" data-wrap-id="${esc(m.uid)}">
+      <div class="message-row-wrap ${unread?'unread':''} ${selected?'selected':''}" data-wrap-id="${esc(m.uid)}">
         <button class="message-select ${selectionMode?'show':''}" data-select-id="${esc(m.uid)}" type="button" aria-label="${selected?'Deselect':'Select'} message">
           <span class="selection-dot">${selected?'✓':''}</span>
         </button>
         <button class="message-star ${m.flagged?'active':''}" data-star-id="${esc(m.uid)}" type="button" aria-label="${m.flagged?'Unstar':'Star'} message">★</button>
-        <button class="message-row ${m.seen===false?'unread':''}" data-id="${esc(m.uid)}">
+        <button class="message-row ${unread?'unread':''}" data-id="${esc(m.uid)}">
           <span class="sender">${esc(m.sender||m.from)}</span>
           <span class="time">${esc(formatDate(m.date))}</span>
-          <span class="subject">${esc(m.subject||'(No subject)')}</span>
-          <span class="snippet">${esc(m.from||'')}</span>
+          <span class="subject">${esc(m.subject||'(No subject)')}${thread.count>1?` <span class="thread-count">(${thread.count})</span>`:''}</span>
+          <span class="snippet">${thread.count>1?'Conversation · ':''}${esc(m.from||'')}</span>
         </button>
       </div>
     </div>`
