@@ -11,6 +11,7 @@ if(!session?.user){location.replace('index.html');throw new Error('Not authentic
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[]
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
+const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
 async function callMailFunction(payload){
   const {data:{session:s}}=await supabase.auth.getSession()
   const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${s.access_token}`,'apikey':SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify(payload)})
@@ -25,7 +26,7 @@ function renderAccounts(){
   if(!accountList)return
   if(!accounts.length){accountList.innerHTML='<div class="no-access">No mailbox access.</div>';return}
   accountList.innerHTML=accounts.map(a=>`<button class="account-btn ${activeAccount?.email===a.email?'active':''}" data-email="${esc(a.email)}"><span class="account-copy"><strong>${esc(a.name)}</strong><span>${esc(a.email)}</span></span></button>`).join('')
-  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;renderAccounts();renderComposeAccounts();await loadMessages();renderReader()})
+  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;renderAccounts();renderComposeAccounts();await loadMessages();renderReader();closeMobileMenu()})
 }
 async function loadMessages(){
   if(!activeAccount)return
@@ -48,10 +49,58 @@ function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt
 function formatDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString([],{month:'short',day:'numeric'})}
 function formatFullDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString()}
 searchInput?.addEventListener('input',renderMessages)
-document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{activeFolder=btn.dataset.folder||'Inbox';await loadMessages()}))
+document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{activeFolder=btn.dataset.folder||'Inbox';document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn));await loadMessages();closeMobileMenu()}))
 document.getElementById('refreshBtn')?.addEventListener('click',loadMessages)
-document.getElementById('composeBtn')?.addEventListener('click',()=>{renderComposeAccounts();composeModal?.classList.remove('hidden')})
+document.getElementById('composeBtn')?.addEventListener('click',()=>{renderComposeAccounts();composeModal?.classList.remove('hidden');closeMobileMenu()})
 document.getElementById('closeCompose')?.addEventListener('click',()=>composeModal?.classList.add('hidden'))
 document.getElementById('composeForm')?.addEventListener('submit',async e=>{e.preventDefault();const status=document.getElementById('composeStatus');status.textContent='Sending...';try{await callMailFunction({action:'send',mailbox_email:composeFrom.value,to:document.getElementById('composeTo').value.trim(),subject:document.getElementById('composeSubject').value.trim(),body:document.getElementById('composeBody').value});status.textContent='Sent.';e.target.reset();setTimeout(()=>composeModal.classList.add('hidden'),700)}catch(err){status.textContent=err.message||'Unable to send.'}})
 document.querySelector('.signout')?.addEventListener('click',async e=>{e.preventDefault();await supabase.auth.signOut();location.replace('index.html')})
+
+function isMobileMenuMode(){return window.matchMedia('(max-width:650px)').matches}
+function openMobileMenu(){
+  if(!isMobileMenuMode()||!mailSidebar)return
+  mailSidebar.classList.add('mobile-open')
+  mobileMenuOverlay?.removeAttribute('hidden')
+  requestAnimationFrame(()=>mobileMenuOverlay?.classList.add('show'))
+  mobileMenuBtn?.setAttribute('aria-expanded','true')
+  document.body.classList.add('mobile-menu-open')
+}
+function closeMobileMenu(){
+  mailSidebar?.classList.remove('mobile-open')
+  mobileMenuOverlay?.classList.remove('show')
+  mobileMenuBtn?.setAttribute('aria-expanded','false')
+  document.body.classList.remove('mobile-menu-open')
+  if(mobileMenuOverlay){
+    window.setTimeout(()=>{if(!mailSidebar?.classList.contains('mobile-open'))mobileMenuOverlay.setAttribute('hidden','')},180)
+  }
+}
+mobileMenuBtn?.addEventListener('click',()=>mailSidebar?.classList.contains('mobile-open')?closeMobileMenu():openMobileMenu())
+mobileMenuClose?.addEventListener('click',closeMobileMenu)
+mobileMenuOverlay?.addEventListener('click',closeMobileMenu)
+document.querySelectorAll('.utility-link').forEach(link=>link.addEventListener('click',closeMobileMenu))
+window.addEventListener('resize',()=>{if(!isMobileMenuMode())closeMobileMenu()})
+
+let touchStartX=0,touchStartY=0,touchLastX=0,trackingEdgeSwipe=false
+document.addEventListener('touchstart',e=>{
+  if(!isMobileMenuMode()||e.touches.length!==1)return
+  touchStartX=e.touches[0].clientX
+  touchStartY=e.touches[0].clientY
+  touchLastX=touchStartX
+  trackingEdgeSwipe=touchStartX<=28||mailSidebar?.classList.contains('mobile-open')
+},{passive:true})
+document.addEventListener('touchmove',e=>{
+  if(!trackingEdgeSwipe||e.touches.length!==1)return
+  touchLastX=e.touches[0].clientX
+},{passive:true})
+document.addEventListener('touchend',e=>{
+  if(!trackingEdgeSwipe)return
+  const dx=touchLastX-touchStartX
+  const dy=(e.changedTouches?.[0]?.clientY??touchStartY)-touchStartY
+  if(Math.abs(dx)>=55&&Math.abs(dx)>Math.abs(dy)*1.2){
+    if(dx>0&&touchStartX<=28)openMobileMenu()
+    if(dx<0&&mailSidebar?.classList.contains('mobile-open'))closeMobileMenu()
+  }
+  trackingEdgeSwipe=false
+},{passive:true})
+
 renderReader();await loadAccounts()
