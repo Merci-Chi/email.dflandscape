@@ -66,11 +66,11 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
 .folder{border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:7px;color:#596259;font-weight:700}
 .folder.active{background:#edf2ed;color:#16371f}
 .inbox-panel{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
-.inbox-head{padding:18px;border-bottom:1px solid var(--line);display:block}
+.inbox-head{padding:18px;border-bottom:1px solid var(--line);display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
 .inbox-head h1{font-size:24px;margin:2px 0;color:#19311f}
 .inbox-head p{font-size:12px;color:#7d877d;margin:0}
-.inbox-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:12px}
-.inbox-actions input{height:38px;flex:1 1 180px;min-width:160px}
+.inbox-actions{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;margin-top:0;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none}
+.inbox-actions input{height:38px;flex:0 0 210px;min-width:180px}
 .inbox-actions button{width:38px;height:38px;border:1px solid #ccd4cc;background:#fff;border-radius:8px;color:#415041;display:inline-flex;align-items:center;justify-content:center}.inbox-actions button svg{width:18px;height:18px;display:block}
 .message-list{overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
 .message-row{width:100%;border:0;border-bottom:1px solid #edf0ed;background:#fff;text-align:left;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:6px 10px}
@@ -586,4 +586,18 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   #searchInput{order:1;flex:1 1 180px}
   #refreshBtn{order:1}
   .mail-sort,.mail-filter{order:2;flex:1 1 140px}
+}
+
+.inbox-actions::-webkit-scrollbar{display:none}
+.inbox-actions>*{flex:0 0 auto}
+.header-select-all{min-width:94px!important}
+.mail-sort{min-width:118px}
+.mail-filter{min-width:126px}
+#refreshBtn{flex:0 0 38px}
+@media(max-width:900px){
+  .inbox-head{display:block}
+  .inbox-actions{margin-top:12px;width:100%;padding-bottom:2px}
+  .header-select-all,#searchInput,#refreshBtn,.mail-sort,.mail-filter{order:initial!important}
+  #searchInput{flex:0 0 200px!important}
+  .mail-sort,.mail-filter{flex:0 0 auto!important;width:auto!important}
 }
