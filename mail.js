@@ -22,7 +22,7 @@ const manageEmailsLink=document.getElementById('manageEmailsLink')
 const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn')
 const networkBanner=document.getElementById('networkBanner')
 const NOTIFY_ENABLED_KEY='dfl_email_notifications_enabled',NOTIFY_SOUND_KEY='dfl_email_notification_sound'
-let backgroundCheckTimer=null,scheduledMailTimer=null,mailRules=[],snoozedMessageKeys=new Set(),pendingUndoScheduleId=null
+let backgroundCheckTimer=null,mailRules=[],snoozedMessageKeys=new Set(),pendingUndoTimer=null,pendingUndoPayload=null
 
 function normalizeThreadSubject(subject=''){
   return String(subject||'(No subject)')
@@ -144,23 +144,7 @@ function composeSendPayload(){
     }))
   }
 }
-async function queueScheduledMessage(sendAt,{undo=false}={}){
-  const payload=composeSendPayload()
-  if(!payload.to&&!payload.cc&&!payload.bcc)throw new Error('Enter at least one recipient.')
-  const row={
-    user_id:session.user.id,
-    mailbox_email:payload.mailbox_email,
-    to_email:payload.to,
-    cc_email:payload.cc,
-    bcc_email:payload.bcc,
-    subject:payload.subject,
-    body:payload.body,
-    attachments:payload.attachments,
-    send_at:sendAt.toISOString(),
-    status:'pending'
-  }
-  const {data,error}=await supabase.from('dflandscape_scheduled_mail').insert(row).select('id').single()
-  if(error)throw error
+function resetComposeAfterQueuedSend(payload){
   rememberRecipients([payload.to,payload.cc,payload.bcc].join(','))
   clearDraft(payload.mailbox_email)
   composeAttachments=[]
@@ -169,80 +153,57 @@ async function queueScheduledMessage(sendAt,{undo=false}={}){
   document.getElementById('ccRow')?.classList.add('hidden')
   document.getElementById('bccRow')?.classList.add('hidden')
   composeModal?.classList.add('hidden')
-  if(undo){
-    pendingUndoScheduleId=data.id
-    const toast=document.getElementById('undoSendToast')
-    if(toast)toast.hidden=false
-  }
-  return data.id
 }
-async function processScheduledMail(){
-  if(!navigator.onLine)return
-  const {data,error}=await supabase
-    .from('dflandscape_scheduled_mail')
-    .select('*')
-    .eq('user_id',session.user.id)
-    .eq('status','pending')
-    .lte('send_at',new Date().toISOString())
-    .order('send_at',{ascending:true})
-    .limit(10)
-  if(error)return
-  for(const row of data||[]){
-    const {data:claimed}=await supabase
-      .from('dflandscape_scheduled_mail')
-      .update({status:'sending',updated_at:new Date().toISOString()})
-      .eq('id',row.id)
-      .eq('user_id',session.user.id)
-      .eq('status','pending')
-      .select('id')
-    if(!claimed?.length)continue
-    try{
-      await callMailFunction({
-        action:'send',
-        mailbox_email:row.mailbox_email,
-        to:row.to_email,
-        cc:row.cc_email,
-        bcc:row.bcc_email,
-        subject:row.subject,
-        body:row.body,
-        attachments:Array.isArray(row.attachments)?row.attachments:[]
-      })
-      await supabase
-        .from('dflandscape_scheduled_mail')
-        .update({status:'sent',error:null,updated_at:new Date().toISOString()})
-        .eq('id',row.id)
-        .eq('user_id',session.user.id)
-      if(pendingUndoScheduleId===row.id){
-        pendingUndoScheduleId=null
-        const toast=document.getElementById('undoSendToast')
-        if(toast){toast.querySelector('span').textContent='Sent.';setTimeout(()=>toast.hidden=true,1400)}
-      }
-    }catch(error){
-      await supabase
-        .from('dflandscape_scheduled_mail')
-        .update({status:'failed',error:error?.message||'Send failed',updated_at:new Date().toISOString()})
-        .eq('id',row.id)
-        .eq('user_id',session.user.id)
-    }
-  }
-}
-function startScheduledMailProcessor(){
-  clearInterval(scheduledMailTimer)
-  processScheduledMail()
-  scheduledMailTimer=setInterval(processScheduledMail,5000)
-}
-async function undoPendingSend(){
-  if(!pendingUndoScheduleId)return
-  const id=pendingUndoScheduleId
-  pendingUndoScheduleId=null
-  await supabase
-    .from('dflandscape_scheduled_mail')
-    .update({status:'cancelled',updated_at:new Date().toISOString()})
-    .eq('id',id)
-    .eq('user_id',session.user.id)
-    .eq('status','pending')
+async function sendPendingUndoMessage(){
+  if(!pendingUndoPayload)return
+  const payload=pendingUndoPayload
+  pendingUndoPayload=null
+  clearTimeout(pendingUndoTimer)
+  pendingUndoTimer=null
+
   const toast=document.getElementById('undoSendToast')
-  if(toast){toast.querySelector('span').textContent='Send cancelled.';setTimeout(()=>toast.hidden=true,1400)}
+
+  try{
+    await callMailFunction({action:'send',...payload})
+    if(toast){
+      toast.querySelector('span').textContent='Sent.'
+      setTimeout(()=>toast.hidden=true,1400)
+    }
+  }catch(error){
+    if(toast){
+      toast.querySelector('span').textContent='Unable to send.'
+      setTimeout(()=>toast.hidden=true,2200)
+    }
+    alert(error?.message||'Unable to send email.')
+  }
+}
+function queueUndoSend(){
+  const payload=composeSendPayload()
+  if(!payload.to&&!payload.cc&&!payload.bcc)throw new Error('Enter at least one recipient.')
+
+  pendingUndoPayload=payload
+  resetComposeAfterQueuedSend(payload)
+
+  const toast=document.getElementById('undoSendToast')
+  if(toast){
+    toast.querySelector('span').textContent='Email will send in 7 seconds.'
+    toast.hidden=false
+  }
+
+  clearTimeout(pendingUndoTimer)
+  pendingUndoTimer=setTimeout(sendPendingUndoMessage,7000)
+}
+function undoPendingSend(){
+  if(!pendingUndoPayload)return
+  clearTimeout(pendingUndoTimer)
+  pendingUndoTimer=null
+  pendingUndoPayload=null
+
+  const toast=document.getElementById('undoSendToast')
+  if(toast){
+    toast.querySelector('span').textContent='Send cancelled.'
+    setTimeout(()=>toast.hidden=true,1400)
+  }
 }
 
 async function callMailFunction(payload){
@@ -436,7 +397,6 @@ async function loadAccounts(){
   await loadMailRulesForUser()
   await applyLaunchTarget()
   startBackgroundMailChecks()
-  startScheduledMailProcessor()
 }
 function renderAccounts(){
   if(!accountList)return
@@ -1217,35 +1177,10 @@ document.getElementById('composeForm')?.addEventListener('submit',async e=>{
   const status=document.getElementById('composeStatus')
   status.textContent='Queuing…'
   try{
-    const id=await queueScheduledMessage(new Date(Date.now()+7000),{undo:true})
+    queueUndoSend()
     status.textContent=''
-    const toast=document.getElementById('undoSendToast')
-    if(toast){
-      toast.querySelector('span').textContent='Email will send in 7 seconds.'
-      toast.hidden=false
-    }
-    setTimeout(()=>{if(pendingUndoScheduleId===id)processScheduledMail()},7200)
   }catch(err){
     status.textContent=err.message||'Unable to send.'
-  }
-})
-
-document.getElementById('scheduleSendBtn')?.addEventListener('click',async()=>{
-  const status=document.getElementById('composeStatus')
-  const input=document.getElementById('scheduleSendAt')
-  const value=input?.value
-  if(!value){status.textContent='Choose a date and time first.';return}
-  const sendAt=new Date(value)
-  if(Number.isNaN(sendAt.getTime())||sendAt.getTime()<=Date.now()+5000){
-    status.textContent='Choose a time at least a few seconds in the future.'
-    return
-  }
-  status.textContent='Scheduling…'
-  try{
-    await queueScheduledMessage(sendAt,{undo:false})
-    status.textContent=''
-  }catch(err){
-    status.textContent=err.message||'Unable to schedule email.'
   }
 })
 
