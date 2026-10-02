@@ -9,20 +9,41 @@ const {data:{session}}=await supabase.auth.getSession()
 if(!session?.user){location.replace('index.html');throw new Error('Not authenticated')}
 
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
-const OPEN_MESSAGE_KEY=`dfl_open_message_v1:${session.user.id}`
+function updateOpenMessageUrl(mailbox='',folder='',uid=''){
+  const url=new URL(location.href)
+
+  if(mailbox)url.searchParams.set('mailbox',mailbox)
+  else url.searchParams.delete('mailbox')
+
+  if(folder)url.searchParams.set('folder',folder)
+  else url.searchParams.delete('folder')
+
+  if(uid)url.searchParams.set('uid',String(uid))
+  else url.searchParams.delete('uid')
+
+  history.replaceState({},'',url.pathname+url.search+url.hash)
+}
 function saveOpenMessage(){
   if(!activeAccount||!activeMessageId)return
-  sessionStorage.setItem(OPEN_MESSAGE_KEY,JSON.stringify({
-    mailbox:activeAccount.email,
-    folder:activeMessage?.sourceFolder||messageFolder(activeMessageId)||activeFolder,
-    uid:String(activeMessageId)
-  }))
+  updateOpenMessageUrl(
+    activeAccount.email,
+    activeMessage?.sourceFolder||messageFolder(activeMessageId)||activeFolder,
+    activeMessageId
+  )
 }
 function clearOpenMessage(){
-  sessionStorage.removeItem(OPEN_MESSAGE_KEY)
+  const url=new URL(location.href)
+  url.searchParams.delete('mailbox')
+  url.searchParams.delete('folder')
+  url.searchParams.delete('uid')
+  history.replaceState({},'',url.pathname+url.search+url.hash)
 }
 function getSavedOpenMessage(){
-  try{return JSON.parse(sessionStorage.getItem(OPEN_MESSAGE_KEY)||'null')}catch{return null}
+  const params=new URLSearchParams(location.search)
+  const mailbox=params.get('mailbox')||''
+  const folder=params.get('folder')||''
+  const uid=params.get('uid')||''
+  return mailbox||folder||uid?{mailbox,folder,uid}:null
 }
 let selectedIds=new Set(),selectionMode=false,longPressTimer=null
 let mailPage=0,mailPageSize=50,mailHasMore=false,mailLoading=false,searchTimer=null,pendingMailReload=false
@@ -362,11 +383,10 @@ function startBackgroundMailChecks(){
   backgroundCheckTimer=setInterval(checkForNewMail,60000)
 }
 async function applyLaunchTarget(){
-  const params=new URLSearchParams(location.search)
   const saved=getSavedOpenMessage()
-  const mailbox=params.get('mailbox')||saved?.mailbox||''
-  const folder=params.get('folder')||saved?.folder||'Inbox'
-  const uid=params.get('uid')||saved?.uid||''
+  const mailbox=saved?.mailbox||''
+  const folder=saved?.folder||'Inbox'
+  const uid=saved?.uid||''
 
   if(mailbox){
     const match=accounts.find(a=>a.email.toLowerCase()===String(mailbox).toLowerCase())
@@ -389,8 +409,6 @@ async function applyLaunchTarget(){
       renderReader()
     }
   }
-
-  if(params.get('mailbox')||params.get('folder')||params.get('uid'))history.replaceState({},'',location.pathname)
 }
 
 async function loadAdminVisibility(){
