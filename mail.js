@@ -12,12 +12,31 @@ let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,cur
 const accountList=document.getElementById('accountList'),mailboxHeading=document.getElementById('mailboxHeading'),mailboxAddress=document.getElementById('mailboxAddress')
 const messageList=document.getElementById('messageList'),readerPanel=document.getElementById('readerPanel'),searchInput=document.getElementById('searchInput'),composeModal=document.getElementById('composeModal'),composeFrom=document.getElementById('composeFrom')
 const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=document.getElementById('mobileMenuClose'),mobileMenuOverlay=document.getElementById('mobileMenuOverlay'),mailSidebar=document.getElementById('mailSidebar')
+const manageEmailsLink=document.getElementById('manageEmailsLink')
 async function callMailFunction(payload){
   const {data:{session:s}}=await supabase.auth.getSession()
   const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${s.access_token}`,'apikey':SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify(payload)})
   const result=await res.json();if(!res.ok)throw new Error(result.error||'Mail request failed.');return result.data
 }
+async function loadAdminVisibility(){
+  if(!manageEmailsLink)return
+  try{
+    const {data,error}=await supabase
+      .from('dflandscape_mail_access')
+      .select('role,active')
+      .eq('user_id',session.user.id)
+
+    if(error)throw error
+    const isAdmin=(data||[]).some(row=>row?.active===true&&String(row?.role||'').toLowerCase()==='admin')
+    manageEmailsLink.hidden=!isAdmin
+  }catch(error){
+    console.error('Unable to check admin access:',error)
+    manageEmailsLink.hidden=true
+  }
+}
+
 async function loadAccounts(){
+  await loadAdminVisibility()
   const emails=await callMailFunction({action:'mailboxes'})
   accounts=(emails||[]).filter(e=>String(e).toLowerCase().endsWith('@dflandscape.com')).map(email=>({email,name:String(email).split('@')[0]}))
   activeAccount=accounts[0]||null;renderAccounts();renderComposeAccounts();if(activeAccount)await loadMessages()
@@ -41,9 +60,29 @@ function renderMessages(){
   messageList.querySelectorAll('[data-id]').forEach(r=>r.onclick=()=>loadMessage(r.dataset.id))
 }
 async function loadMessage(uid){
-  try{const m=await callMailFunction({action:'get',folder:activeFolder,uid,mailbox_email:activeAccount.email});readerPanel.innerHTML=`<article class="reader reader-rich"><div class="eyebrow dark">Message</div><h2>${esc(m.subject||'(No subject)')}</h2><div class="reader-meta">From: ${esc(m.sender||m.from||'')}<br>To: ${esc(m.to||activeAccount.email)}<br>${esc(formatFullDate(m.date))}</div><div class="reader-body">${m.html||esc(m.body||'')}</div></article>`}catch(e){readerPanel.innerHTML=`<div class="empty-reader"><strong>Unable to open email</strong><span>${esc(e.message)}</span></div>`}
+  try{
+    activeMessageId=uid
+    const m=await callMailFunction({action:'get',folder:activeFolder,uid,mailbox_email:activeAccount.email})
+    readerPanel.innerHTML=`<article class="reader reader-rich"><button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button><div class="eyebrow dark">Message</div><h2>${esc(m.subject||'(No subject)')}</h2><div class="reader-meta">From: ${esc(m.sender||m.from||'')}<br>To: ${esc(m.to||activeAccount.email)}<br>${esc(formatFullDate(m.date))}</div><div class="reader-body">${m.html||esc(m.body||'')}</div></article>`
+    if(window.matchMedia('(max-width:900px)').matches){
+      readerPanel.classList.add('mobile-open')
+      readerPanel.scrollTop=0
+    }
+    document.getElementById('mobileReaderBack')?.addEventListener('click',closeMobileReader)
+  }catch(e){
+    readerPanel.innerHTML=`<div class="empty-reader"><strong>Unable to open email</strong><span>${esc(e.message)}</span></div>`
+    if(window.matchMedia('(max-width:900px)').matches)readerPanel.classList.add('mobile-open')
+  }
 }
-function renderReader(){if(readerPanel)readerPanel.innerHTML='<div class="empty-reader"><strong>Select an email</strong><span>Choose a message to read it here.</span></div>'}
+function closeMobileReader(){
+  readerPanel?.classList.remove('mobile-open')
+  activeMessageId=null
+}
+function renderReader(){
+  if(!readerPanel)return
+  readerPanel.classList.remove('mobile-open')
+  readerPanel.innerHTML='<div class="empty-reader"><strong>Select an email</strong><span>Choose a message to read it here.</span></div>'
+}
 function renderComposeAccounts(){if(composeFrom)composeFrom.innerHTML=accounts.map(a=>`<option value="${esc(a.email)}" ${activeAccount?.email===a.email?'selected':''}>${esc(a.email)}</option>`).join('')}
 function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]))}
 function formatDate(v){if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString([],{month:'short',day:'numeric'})}
@@ -78,7 +117,10 @@ mobileMenuBtn?.addEventListener('click',()=>mailSidebar?.classList.contains('mob
 mobileMenuClose?.addEventListener('click',closeMobileMenu)
 mobileMenuOverlay?.addEventListener('click',closeMobileMenu)
 document.querySelectorAll('.utility-link').forEach(link=>link.addEventListener('click',closeMobileMenu))
-window.addEventListener('resize',()=>{if(!isMobileMenuMode())closeMobileMenu()})
+window.addEventListener('resize',()=>{
+  if(!isMobileMenuMode())closeMobileMenu()
+  if(!window.matchMedia('(max-width:900px)').matches)readerPanel?.classList.remove('mobile-open')
+})
 
 let touchStartX=0,touchStartY=0,touchLastX=0,trackingEdgeSwipe=false
 document.addEventListener('touchstart',e=>{
