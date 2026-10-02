@@ -601,3 +601,26 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   #searchInput{flex:0 0 200px!important}
   .mail-sort,.mail-filter{flex:0 0 auto!important;width:auto!important}
 }
+
+/* Compact email-style toolbar */
+.mail-native-state{display:none!important}
+.inbox-actions{overflow:visible!important}
+.toolbar-icon-btn{width:38px!important;height:38px!important;min-width:38px!important;padding:0!important;border:1px solid #ccd4cc;background:#fff;border-radius:8px;color:#415041;display:inline-flex;align-items:center;justify-content:center;position:relative}
+.toolbar-icon-btn:hover{background:#f4f7f4}
+.toolbar-icon-btn svg{width:18px;height:18px;display:block}
+.header-select-all{width:38px!important;min-width:38px!important;padding:0!important}
+.header-select-circle{width:19px;height:19px;border:1.5px solid #91a091;border-radius:50%;display:block}
+.header-select-all.active .header-select-circle{background:#31573a;border-color:#31573a;box-shadow:inset 0 0 0 4px #31573a}
+.mail-toolbar-menu{position:relative;flex:0 0 auto}
+.toolbar-popover{position:absolute;top:44px;left:0;z-index:40;min-width:150px;padding:5px;background:#fff;border:1px solid #d7dfd7;border-radius:9px;box-shadow:0 12px 30px rgba(8,23,13,.14)}
+.toolbar-popover[hidden]{display:none!important}
+.toolbar-popover button{width:100%!important;height:auto!important;border:0!important;background:#fff!important;text-align:left;justify-content:flex-start!important;padding:9px 10px!important;border-radius:7px!important;font-size:12px;font-weight:800;color:#2e3e31}
+.toolbar-popover button:hover{background:#eef4ee!important}
+#searchInput{flex:1 1 180px!important;min-width:140px!important;max-width:none!important}
+@media(max-width:900px){
+  .inbox-actions{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:visible!important;scrollbar-width:none}
+  .inbox-actions::-webkit-scrollbar{display:none}
+  .toolbar-icon-btn{flex:0 0 38px!important}
+  #searchInput{flex:1 1 160px!important;min-width:150px!important}
+  .mail-toolbar-menu{flex:0 0 auto}
+}
