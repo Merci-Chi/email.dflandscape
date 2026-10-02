@@ -782,6 +782,50 @@ function renderMessageAttachments(message){
   </section>`
 }
 
+
+async function loadThreadConversation(message){
+  const key=normalizeThreadSubject(message.subject)
+  const rows=currentMessages
+    .filter(row=>normalizeThreadSubject(row.subject)===key)
+    .slice(0,10)
+  const full=[]
+  for(const row of rows){
+    if(String(row.uid)===String(message.uid)){
+      full.push(message)
+      continue
+    }
+    try{
+      const item=await callMailFunction({
+        action:'get',
+        folder:row.sourceFolder||activeFolder,
+        uid:String(row.uid),
+        mailbox_email:activeAccount.email
+      })
+      item.sourceFolder=row.sourceFolder||activeFolder
+      full.push(item)
+    }catch{}
+  }
+  if(!full.some(item=>String(item.uid)===String(message.uid)))full.push(message)
+  full.sort((a,b)=>new Date(a.date||0)-new Date(b.date||0))
+  return full
+}
+function renderThreadConversation(messages,active){
+  if(!messages||messages.length<2){
+    return `<div class="reader-body">${active.html||esc(active.body||'')}</div>`
+  }
+  return `<section class="thread-conversation">
+    ${messages.map(item=>`
+      <article class="thread-message ${String(item.uid)===String(active.uid)?'active':''}">
+        <div class="thread-message-head">
+          <strong>${esc(item.sender||item.from||'Unknown sender')}</strong>
+          <span>${esc(formatFullDate(item.date))}</span>
+        </div>
+        <div class="thread-message-meta">To: ${esc(item.to||activeAccount.email)}</div>
+        <div class="thread-message-body">${item.html||esc(item.body||'')}</div>
+      </article>`).join('')}
+  </section>`
+}
+
 async function loadMessage(uid){
   try{
     activeMessageId=uid
@@ -789,6 +833,7 @@ async function loadMessage(uid){
     const m=await callMailFunction({action:'get',folder:sourceFolder,uid,mailbox_email:activeAccount.email})
     m.sourceFolder=sourceFolder
     activeMessage=m
+    const threadMessages=await loadThreadConversation(m)
     readerPanel.innerHTML=`<article class="reader reader-rich">
       <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
       <div class="message-actions">
@@ -799,13 +844,14 @@ async function loadMessage(uid){
         <button type="button" class="message-action-btn" id="starMessageBtn">${m.flagged?'Unstar':'Star'}</button>
         ${sourceFolder!=='Trash'?'<button type="button" class="message-action-btn" id="archiveMessageBtn">Archive</button>':''}
         ${sourceFolder!=='Junk'?'<button type="button" class="message-action-btn" id="spamMessageBtn">Spam</button>':''}
+        <select class="message-move-select" id="snoozeMessageSelect" aria-label="Snooze message"><option value="">Snooze…</option><option value="1h">1 hour</option><option value="tomorrow">Tomorrow at 9 AM</option><option value="3d">3 days</option><option value="1w">1 week</option></select>
         <select class="message-move-select" id="moveMessageSelect" aria-label="Move message"><option value="">Move to…</option><option value="Inbox">Inbox</option><option value="Archive">Archive</option><option value="Junk">Spam</option><option value="Trash">Trash</option></select>
         <button type="button" class="message-action-btn danger" id="deleteMessageBtn">${sourceFolder==='Trash'?'Delete forever':'Delete'}</button>
       </div>
       <div class="eyebrow dark">Message</div>
       <h2>${esc(m.subject||'(No subject)')}</h2>
       <div class="reader-meta">From: ${esc(m.sender||m.from||'')}<br>To: ${esc(m.to||activeAccount.email)}<br>${esc(formatFullDate(m.date))}</div>
-      <div class="reader-body">${m.html||esc(m.body||'')}</div>
+      ${renderThreadConversation(threadMessages,m)}
       ${renderMessageAttachments(m)}
     </article>`
     document.getElementById('replyMessageBtn')?.addEventListener('click',()=>openReplyComposer(m))
@@ -815,6 +861,7 @@ async function loadMessage(uid){
     document.getElementById('starMessageBtn')?.addEventListener('click',()=>toggleActiveStar())
     document.getElementById('archiveMessageBtn')?.addEventListener('click',archiveActiveMessage)
     document.getElementById('spamMessageBtn')?.addEventListener('click',()=>moveActiveMessage('Junk'))
+    document.getElementById('snoozeMessageSelect')?.addEventListener('change',e=>{if(e.target.value)snoozeActiveMessage(e.target.value)})
     document.getElementById('moveMessageSelect')?.addEventListener('change',e=>{if(e.target.value)moveActiveMessage(e.target.value)})
     document.getElementById('deleteMessageBtn')?.addEventListener('click',deleteActiveMessage)
     readerPanel.querySelectorAll('[data-preview-attachment]').forEach(btn=>btn.addEventListener('click',()=>openAttachmentPreview(btn.dataset.previewAttachment)))
