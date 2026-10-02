@@ -460,3 +460,19 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .recipient-suggestions{position:fixed;left:12px;right:12px;top:auto;max-height:180px}
   #signatureText{min-height:150px}
 }
+
+
+/* Batch 4 mailbox organization */
+.folder-count{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#dfe9df;color:#26402d;font-size:10px;font-weight:900;display:inline-flex!important;align-items:center;justify-content:center}
+.folder-count[hidden]{display:none!important}
+.mail-filter{height:38px;min-width:138px;padding:0 30px 0 10px;border-radius:8px;font-size:12px}
+.message-move-select,.bulk-move-select{height:36px;border:1px solid #cfd8cf;background:#fff;color:#27402c;border-radius:8px;padding:0 28px 0 10px;font-size:12px;font-weight:800}
+.bulk-move-select{height:34px}
+.folder-icon{font-style:normal;font-weight:900}
+@media(max-width:650px){
+  .inbox-actions{flex-wrap:wrap}
+  .mail-filter{order:2;width:100%;min-width:0}
+  .inbox-actions input{order:1}
+  .inbox-actions #refreshBtn{order:1}
+  .message-move-select{flex:0 0 auto;min-width:108px}
+}
