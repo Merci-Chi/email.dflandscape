@@ -48,6 +48,8 @@ const forgotMessage = document.getElementById('forgotMessage')
 const firstLoginMessage = document.getElementById('firstLoginMessage')
 const resetMessage = document.getElementById('resetMessage')
 
+const magicLinkBtn = document.getElementById('magicLinkBtn')
+
 const eyeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>'
 const eyeOffSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 18 18"></path><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path><path d="M9.9 4.2A10.4 10.4 0 0 1 12 4c6.5 0 10 8 10 8a16 16 0 0 1-2.2 3.2"></path><path d="M6.2 6.2C3.5 8.1 2 12 2 12s3.5 8 10 8a9.8 9.8 0 0 0 4.1-.9"></path></svg>'
 const copySvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'
@@ -145,6 +147,39 @@ loginForm.addEventListener('submit', async (event) => {
   } finally {
     submitButton.disabled = false
     submitButton.textContent = 'Sign in'
+  }
+})
+
+magicLinkBtn?.addEventListener('click', async () => {
+  const email = document.getElementById('email').value.trim().toLowerCase()
+  loginMessage.classList.remove('success')
+  loginMessage.textContent = ''
+
+  if (!email) {
+    loginMessage.textContent = 'Enter your company email first.'
+    return
+  }
+
+  magicLinkBtn.disabled = true
+  magicLinkBtn.textContent = 'Sending secure link...'
+
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: 'https://email.dflandscape.com'
+      }
+    })
+    if (error) throw error
+    loginMessage.classList.add('success')
+    loginMessage.textContent = 'Secure sign-in link sent. Open it from your email to continue.'
+  } catch (error) {
+    loginMessage.classList.remove('success')
+    loginMessage.textContent = error.message || 'Unable to send sign-in link.'
+  } finally {
+    magicLinkBtn.disabled = false
+    magicLinkBtn.textContent = 'Email me a secure sign-in link'
   }
 })
 
