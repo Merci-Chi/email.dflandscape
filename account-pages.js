@@ -19,6 +19,61 @@ const accountList=document.getElementById('accountList')
 if(accountList)accountList.innerHTML=`<a class="account-btn active" href="mail.html" style="text-decoration:none"><span class="account-copy"><strong>${esc(displayName)}</strong><span>${esc(email)}</span></span></a>`
 
 
+
+const NOTIFY_ENABLED_KEY='dfl_email_notifications_enabled'
+const NOTIFY_SOUND_KEY='dfl_email_notification_sound'
+const notificationToggle=document.getElementById('notificationToggle')
+const notificationSoundToggle=document.getElementById('notificationSoundToggle')
+const enableNotificationsBtn=document.getElementById('enableNotificationsBtn')
+const notificationMessage=document.getElementById('notificationMessage')
+
+function notificationEnabled(){
+  return localStorage.getItem(NOTIFY_ENABLED_KEY)==='true'
+}
+function notificationSoundEnabled(){
+  return localStorage.getItem(NOTIFY_SOUND_KEY)!=='false'
+}
+function refreshNotificationSettings(){
+  if(notificationToggle)notificationToggle.checked=notificationEnabled()
+  if(notificationSoundToggle)notificationSoundToggle.checked=notificationSoundEnabled()
+  if(notificationMessage){
+    if(!('Notification' in window))notificationMessage.textContent='Notifications are not supported in this browser.'
+    else if(Notification.permission==='denied')notificationMessage.textContent='Notifications are blocked in your browser settings.'
+    else if(Notification.permission==='granted'&&notificationEnabled())notificationMessage.textContent='Notifications are enabled on this device.'
+    else notificationMessage.textContent='Notifications are off on this device.'
+  }
+}
+notificationToggle?.addEventListener('change',async()=>{
+  if(notificationToggle.checked){
+    if(!('Notification' in window)){
+      notificationToggle.checked=false
+      refreshNotificationSettings()
+      return
+    }
+    const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission()
+    if(permission!=='granted'){
+      notificationToggle.checked=false
+      localStorage.setItem(NOTIFY_ENABLED_KEY,'false')
+    }else{
+      localStorage.setItem(NOTIFY_ENABLED_KEY,'true')
+    }
+  }else{
+    localStorage.setItem(NOTIFY_ENABLED_KEY,'false')
+  }
+  refreshNotificationSettings()
+})
+notificationSoundToggle?.addEventListener('change',()=>{
+  localStorage.setItem(NOTIFY_SOUND_KEY,String(notificationSoundToggle.checked))
+  refreshNotificationSettings()
+})
+enableNotificationsBtn?.addEventListener('click',async()=>{
+  if(!('Notification' in window)){refreshNotificationSettings();return}
+  const permission=await Notification.requestPermission()
+  localStorage.setItem(NOTIFY_ENABLED_KEY,String(permission==='granted'))
+  refreshNotificationSettings()
+})
+refreshNotificationSettings()
+
 const settingsEmail=document.getElementById('settingsEmail')
 const settingsDisplayName=document.getElementById('settingsDisplayName')
 const profileForm=document.getElementById('profileForm')
