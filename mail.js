@@ -368,6 +368,7 @@ async function checkForNewMail(){
       if(previousSet.size){
         const newlyArrived=messages.filter(m=>!previousSet.has(String(m.uid)))
         if(newlyArrived.length){
+          await applyRulesToMessages(account.email,newlyArrived)
           await showMailNotification(account.email,newlyArrived[0],Math.max(0,newlyArrived.length-1))
           if(activeAccount?.email===account.email&&activeFolder==='Inbox'&&!(searchInput?.value||'').trim()){
             await loadMessages({reset:true})
@@ -432,8 +433,10 @@ async function loadAccounts(){
   }
   activeAccount=accounts[0]||null
   renderComposeAccounts()
+  await loadMailRulesForUser()
   await applyLaunchTarget()
   startBackgroundMailChecks()
+  startScheduledMailProcessor()
 }
 function renderAccounts(){
   if(!accountList)return
@@ -1212,34 +1215,42 @@ composeFrom?.addEventListener('change',()=>{
 document.getElementById('composeForm')?.addEventListener('submit',async e=>{
   e.preventDefault()
   const status=document.getElementById('composeStatus')
-  status.textContent='Sending...'
+  status.textContent='Queuing…'
   try{
-    await callMailFunction({
-      action:'send',
-      mailbox_email:composeFrom.value,
-      to:composeTo.value.trim(),
-      cc:composeCc?.value.trim()||'',
-      bcc:composeBcc?.value.trim()||'',
-      subject:composeSubject.value.trim(),
-      body:composeBody.value,
-      attachments:composeAttachments.map(a=>({
-        filename:safeAttachmentName(a.filename),
-        mimeType:a.mimeType||'application/octet-stream',
-        size:Number(a.size)||0,
-        base64:a.base64||String(a.dataUrl||'').split(',')[1]||''
-      }))
-    })
-    rememberRecipients([composeTo.value,composeCc?.value,composeBcc?.value].join(','))
-    clearDraft(composeFrom.value)
-    composeAttachments=[]
-    renderComposeAttachments()
-    status.textContent='Sent.'
-    e.target.reset()
-    document.getElementById('ccRow')?.classList.add('hidden')
-    document.getElementById('bccRow')?.classList.add('hidden')
-    setTimeout(()=>composeModal.classList.add('hidden'),700)
-  }catch(err){status.textContent=err.message||'Unable to send.'}
+    const id=await queueScheduledMessage(new Date(Date.now()+7000),{undo:true})
+    status.textContent=''
+    const toast=document.getElementById('undoSendToast')
+    if(toast){
+      toast.querySelector('span').textContent='Email will send in 7 seconds.'
+      toast.hidden=false
+    }
+    setTimeout(()=>{if(pendingUndoScheduleId===id)processScheduledMail()},7200)
+  }catch(err){
+    status.textContent=err.message||'Unable to send.'
+  }
 })
+
+document.getElementById('scheduleSendBtn')?.addEventListener('click',async()=>{
+  const status=document.getElementById('composeStatus')
+  const input=document.getElementById('scheduleSendAt')
+  const value=input?.value
+  if(!value){status.textContent='Choose a date and time first.';return}
+  const sendAt=new Date(value)
+  if(Number.isNaN(sendAt.getTime())||sendAt.getTime()<=Date.now()+5000){
+    status.textContent='Choose a time at least a few seconds in the future.'
+    return
+  }
+  status.textContent='Scheduling…'
+  try{
+    await queueScheduledMessage(sendAt,{undo:false})
+    status.textContent=''
+  }catch(err){
+    status.textContent=err.message||'Unable to schedule email.'
+  }
+})
+
+document.getElementById('undoSendBtn')?.addEventListener('click',undoPendingSend)
+
 document.querySelector('.signout')?.addEventListener('click',async e=>{e.preventDefault();await supabase.auth.signOut();location.replace('index.html')})
 
 
