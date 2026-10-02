@@ -624,3 +624,24 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   #searchInput{flex:1 1 160px!important;min-width:150px!important}
   .mail-toolbar-menu{flex:0 0 auto}
 }
+
+/* Force mailbox title above toolbar */
+.inbox-head{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-rows:auto auto!important;
+  align-items:stretch!important;
+  justify-content:stretch!important;
+  gap:12px!important;
+}
+.inbox-head>div:first-child{
+  grid-column:1!important;
+  grid-row:1!important;
+  width:100%!important;
+}
+.inbox-actions{
+  grid-column:1!important;
+  grid-row:2!important;
+  width:100%!important;
+  margin-top:0!important;
+}
