@@ -100,8 +100,9 @@ function validatePasswords(password, confirmPassword) {
 
 async function routeSignedInUser(user) {
   if (!user) return
-  const complete = user.user_metadata?.onboarding_complete === true
-  if (!complete) {
+  const metadata = user.user_metadata || {}
+  const needsSetup = metadata.force_password_change === true || metadata.onboarding_complete !== true
+  if (needsSetup) {
     document.getElementById('displayName').value = user.user_metadata?.display_name || ''
     setHeading('Finish setup', 'Add your display name and choose your private login password.')
     showOnly(firstLoginForm)
@@ -139,7 +140,7 @@ loginForm.addEventListener('submit', async (event) => {
     await routeSignedInUser(data.user)
   } catch (error) {
     loginMessage.textContent = error.message === 'Invalid login credentials'
-      ? 'Incorrect email or password.'
+      ? 'That password does not match this account. If you already finished first-time setup, use the new password you chose instead of the temporary password.'
       : (error.message || 'Unable to sign in.')
   } finally {
     submitButton.disabled = false
@@ -211,7 +212,8 @@ firstLoginForm.addEventListener('submit', async (event) => {
       password,
       data: {
         display_name: displayName,
-        onboarding_complete: true
+        onboarding_complete: true,
+        force_password_change: false
       }
     })
     if (error) throw error
