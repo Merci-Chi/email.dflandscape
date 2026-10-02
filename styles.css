@@ -660,3 +660,117 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
 .message-row:has(.search-match-note){
   row-gap:4px;
 }
+
+/* Reader action toolbar — compact email app style */
+.message-actions{
+  display:grid;
+  gap:8px;
+  margin:0 0 18px;
+  padding-bottom:14px;
+  border-bottom:1px solid var(--line);
+}
+.message-action-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.message-action-btn,
+.message-select-action{
+  min-height:40px;
+  border:1px solid #cfd8cf;
+  background:#fff;
+  color:#27402c;
+  border-radius:9px;
+  font-weight:800;
+  font-size:12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  padding:8px 12px;
+  line-height:1;
+}
+.message-action-btn:hover,
+.message-select-action:hover{
+  background:#f3f7f3;
+}
+.message-action-btn svg,
+.message-select-action svg{
+  width:18px;
+  height:18px;
+  flex:0 0 18px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.9;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.message-select-action{
+  position:relative;
+  padding-right:8px;
+}
+.message-select-action select{
+  appearance:auto;
+  -webkit-appearance:auto;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  font-weight:800;
+  min-width:70px;
+  padding:0 2px 0 0;
+  cursor:pointer;
+}
+.message-action-divider{
+  width:1px;
+  height:30px;
+  background:#d8dfd8;
+  margin:0 2px;
+}
+.message-action-btn.danger{
+  color:#b4322d;
+  border-color:#e5b8b4;
+}
+.message-action-btn.danger:hover{
+  background:#fff3f2;
+}
+.message-action-btn:disabled{
+  opacity:.6;
+  cursor:wait;
+}
+@media(max-width:1100px){
+  .message-action-row{
+    gap:6px;
+  }
+  .message-action-btn,
+  .message-select-action{
+    padding:8px 10px;
+  }
+}
+@media(max-width:650px){
+  .message-actions{
+    position:sticky;
+    top:0;
+    z-index:3;
+    background:#fff;
+    padding:6px 0 10px;
+    margin-bottom:12px;
+    overflow-x:auto;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    -webkit-overflow-scrolling:touch;
+  }
+  .message-action-row{
+    flex-wrap:nowrap;
+    width:max-content;
+  }
+  .message-action-btn,
+  .message-select-action{
+    flex:0 0 auto;
+    min-width:auto;
+    min-height:40px;
+  }
+}
