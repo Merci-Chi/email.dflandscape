@@ -1260,3 +1260,60 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
   .reader-skeleton-meta{width:72%}
   .reader-skeleton-meta.short{width:48%}
 }
+
+
+/* Mobile reader actions: icon-only toolbar */
+@media(max-width:650px){
+  .reader-panel.mobile-open .message-actions{
+    position:sticky;
+    top:0;
+    z-index:4;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px;
+    overflow:visible;
+    padding:8px 0 10px;
+    margin-bottom:12px;
+    background:#fff;
+    border-bottom:1px solid #edf0ed;
+  }
+  .reader-panel.mobile-open .message-action-row{
+    display:flex;
+    flex-wrap:nowrap;
+    gap:8px;
+    width:auto;
+  }
+  .reader-panel.mobile-open .message-action-btn{
+    width:44px;
+    height:44px;
+    min-width:44px;
+    min-height:44px;
+    flex:0 0 44px;
+    padding:0;
+    display:grid;
+    place-items:center;
+    border-radius:10px;
+  }
+  .reader-panel.mobile-open .message-action-btn svg{
+    width:22px;
+    height:22px;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:2;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+  }
+  .reader-panel.mobile-open .message-action-btn > span{
+    position:absolute;
+    width:1px;
+    height:1px;
+    padding:0;
+    margin:-1px;
+    overflow:hidden;
+    clip:rect(0,0,0,0);
+    white-space:nowrap;
+    border:0;
+  }
+  .reader-panel.mobile-open .message-action-divider{display:none}
+}
