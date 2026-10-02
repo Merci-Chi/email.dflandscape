@@ -9,8 +9,8 @@ if(!session?.user){location.replace('index.html');throw new Error('Not authentic
 const user=session.user
 const email=(user.email||'').toLowerCase()
 const displayName=user.user_metadata?.display_name||email.split('@')[0]||'Mailbox'
-const {data:accessRow,error:accessError}=await supabase.from('dflandscape_mail_access').select('role,active').eq('user_id',user.id).maybeSingle()
-const canManageEmails=!accessError&&accessRow?.active===true&&String(accessRow?.role||'').toLowerCase()==='admin'
+const {data:accessRows,error:accessError}=await supabase.from('dflandscape_mail_access').select('role,active').eq('user_id',user.id)
+const canManageEmails=!accessError&&(accessRows||[]).some(row=>row?.active===true&&String(row?.role||'').toLowerCase()==='admin')
 const manageEmailsLink=document.getElementById('manageEmailsLink')
 if(manageEmailsLink)manageEmailsLink.hidden=!canManageEmails
 if(location.pathname.endsWith('/manage-emails.html')&&!canManageEmails){location.replace('mail.html');throw new Error('No access')}
@@ -81,6 +81,7 @@ const passwordForm=document.getElementById('passwordForm')
 const signatureForm=document.getElementById('signatureForm')
 const signatureMailbox=document.getElementById('signatureMailbox')
 const signatureText=document.getElementById('signatureText')
+const mailRuleForm=document.getElementById('mailRuleForm'),mailRuleMailbox=document.getElementById('mailRuleMailbox'),mailRuleList=document.getElementById('mailRuleList')
 
 async function loadSettingsMailboxes(){
   if(!signatureMailbox)return
@@ -98,10 +99,12 @@ async function loadSettingsMailboxes(){
     const result=await res.json()
     const mailboxes=(result?.data||[]).filter(v=>String(v).toLowerCase().endsWith('@dflandscape.com'))
     signatureMailbox.innerHTML=mailboxes.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('')
+    if(mailRuleMailbox)mailRuleMailbox.innerHTML='<option value="">All mailboxes</option>'+mailboxes.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('')
     loadSelectedSignature()
   }catch(error){
     console.error('Unable to load signature mailboxes',error)
     signatureMailbox.innerHTML=`<option value="${esc(email)}">${esc(email)}</option>`
+    if(mailRuleMailbox)mailRuleMailbox.innerHTML='<option value="">All mailboxes</option><option value="'+esc(email)+'">'+esc(email)+'</option>'
     loadSelectedSignature()
   }
 }
@@ -166,6 +169,68 @@ signatureForm?.addEventListener('submit',async e=>{
 })
 
 if(signatureMailbox)loadSettingsMailboxes()
+if(mailRuleList)loadMailRules()
+
+
+async function loadMailRules(){
+  if(!mailRuleList)return
+  mailRuleList.innerHTML='<div class="admin-loading">Loading rules…</div>'
+  const {data,error}=await supabase
+    .from('dflandscape_mail_rules')
+    .select('*')
+    .eq('user_id',user.id)
+    .order('created_at',{ascending:false})
+  if(error){
+    mailRuleList.innerHTML='<div class="admin-empty">'+esc(error.message||'Unable to load rules.')+'</div>'
+    return
+  }
+  if(!(data||[]).length){
+    mailRuleList.innerHTML='<div class="admin-empty">No mail rules yet.</div>'
+    return
+  }
+  mailRuleList.innerHTML=(data||[]).map(rule=>`
+    <div class="mail-rule-row">
+      <div class="mail-rule-copy">
+        <strong>${esc(rule.name)}</strong>
+        <span>${esc(rule.mailbox_email||'All mailboxes')} · ${esc(rule.field)} ${esc(rule.operator)} “${esc(rule.match_value)}” → ${esc(rule.action.replaceAll('_',' '))}</span>
+      </div>
+      <div class="mail-rule-actions">
+        <label class="switch"><input type="checkbox" data-rule-toggle="${esc(rule.id)}" ${rule.enabled?'checked':''}><span></span></label>
+        <button type="button" data-rule-delete="${esc(rule.id)}">Delete</button>
+      </div>
+    </div>`).join('')
+  mailRuleList.querySelectorAll('[data-rule-toggle]').forEach(input=>input.addEventListener('change',async()=>{
+    await supabase.from('dflandscape_mail_rules').update({enabled:input.checked,updated_at:new Date().toISOString()}).eq('id',input.dataset.ruleToggle).eq('user_id',user.id)
+  }))
+  mailRuleList.querySelectorAll('[data-rule-delete]').forEach(btn=>btn.addEventListener('click',async()=>{
+    if(!confirm('Delete this mail rule?'))return
+    await supabase.from('dflandscape_mail_rules').delete().eq('id',btn.dataset.ruleDelete).eq('user_id',user.id)
+    await loadMailRules()
+  }))
+}
+
+mailRuleForm?.addEventListener('submit',async e=>{
+  e.preventDefault()
+  const msg=document.getElementById('mailRuleMessage')
+  msg.textContent='Saving…'
+  const payload={
+    user_id:user.id,
+    mailbox_email:document.getElementById('mailRuleMailbox').value||null,
+    name:document.getElementById('mailRuleName').value.trim(),
+    field:document.getElementById('mailRuleField').value,
+    operator:document.getElementById('mailRuleOperator').value,
+    match_value:document.getElementById('mailRuleValue').value.trim(),
+    action:document.getElementById('mailRuleAction').value,
+    enabled:true
+  }
+  const {error}=await supabase.from('dflandscape_mail_rules').insert(payload)
+  if(error){msg.textContent=error.message||'Unable to save rule.';return}
+  mailRuleForm.reset()
+  msg.textContent='Rule added.'
+  msg.classList.add('success')
+  await loadMailRules()
+})
+
 
 let adminState={users:[],mailboxes:[]}
 async function adminApi(action,payload={}){
