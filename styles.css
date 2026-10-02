@@ -66,10 +66,10 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
 .folder{border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:7px;color:#596259;font-weight:700}
 .folder.active{background:#edf2ed;color:#16371f}
 .inbox-panel{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
-.inbox-head{padding:18px;border-bottom:1px solid var(--line);display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+.inbox-head{padding:18px;border-bottom:1px solid var(--line);display:block}
 .inbox-head h1{font-size:24px;margin:2px 0;color:#19311f}
 .inbox-head p{font-size:12px;color:#7d877d;margin:0}
-.inbox-actions{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;margin-top:0;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none}
+.inbox-actions{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;margin-top:12px;min-width:0;overflow-x:auto;overflow-y:visible;scrollbar-width:none;-ms-overflow-style:none}
 .inbox-actions input{height:38px;flex:0 0 210px;min-width:180px}
 .inbox-actions button{width:38px;height:38px;border:1px solid #ccd4cc;background:#fff;border-radius:8px;color:#415041;display:inline-flex;align-items:center;justify-content:center}.inbox-actions button svg{width:18px;height:18px;display:block}
 .message-list{overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
