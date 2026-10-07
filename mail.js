@@ -456,7 +456,6 @@ async function applyLaunchTarget(){
 }
 
 async function loadAdminVisibility(){
-  if(!manageEmailsLink)return
   try{
     const {data,error}=await supabase
       .from('dflandscape_mail_access')
@@ -465,26 +464,51 @@ async function loadAdminVisibility(){
 
     if(error)throw error
     const isAdmin=(data||[]).some(row=>row?.active===true&&String(row?.role||'').toLowerCase()==='admin')
-    manageEmailsLink.hidden=!isAdmin
+    if(manageEmailsLink)manageEmailsLink.hidden=!isAdmin
+    return isAdmin
   }catch(error){
     console.error('Unable to check admin access:',error)
-    manageEmailsLink.hidden=true
+    if(manageEmailsLink)manageEmailsLink.hidden=true
+    return false
   }
 }
 
 async function loadAccounts(){
-  await loadAdminVisibility()
+  const isAdmin=await loadAdminVisibility()
   try{
-    const emails=await callMailFunction({action:'mailboxes'})
-    accounts=(emails||[]).filter(e=>String(e).toLowerCase().endsWith('@dflandscape.com')).map(email=>({email,name:String(email).split('@')[0]}))
+    let emails=[]
+
+    if(isAdmin){
+      const {data,error}=await supabase
+        .from('dflandscape_mailboxes')
+        .select('email')
+        .eq('active',true)
+        .order('email')
+
+      if(error)throw error
+      emails=(data||[]).map(row=>row.email)
+    }else{
+      emails=await callMailFunction({action:'mailboxes'})
+    }
+
+    accounts=(emails||[])
+      .filter(e=>String(e).toLowerCase().endsWith('@dflandscape.com'))
+      .map(email=>({email,name:String(email).split('@')[0]}))
+
     localStorage.setItem(`dfl_mail_accounts_v1:${session.user.id}`,JSON.stringify(accounts))
   }catch(error){
+    console.error('Unable to load mailbox accounts:',error)
     try{
       accounts=JSON.parse(localStorage.getItem(`dfl_mail_accounts_v1:${session.user.id}`)||'[]')
     }catch{accounts=[]}
-    if(!accounts.length)throw error
+    if(!accounts.length){
+      if(accountList)accountList.innerHTML='<div class="no-access">Unable to load mailboxes.</div>'
+      return
+    }
   }
+
   activeAccount=accounts[0]||null
+  renderAccounts()
   renderComposeAccounts()
   await loadMailRulesForUser()
   await applyLaunchTarget()
