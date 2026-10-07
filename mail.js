@@ -428,36 +428,111 @@ function openNotificationPrompt(){
 function closeNotificationPrompt(){
   notificationPrompt?.classList.add('hidden')
 }
+function urlBase64ToUint8Array(base64String){
+  const padding='='.repeat((4-base64String.length%4)%4)
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/')
+  const rawData=atob(base64)
+  return Uint8Array.from([...rawData].map(char=>char.charCodeAt(0)))
+}
+async function pushFunction(payload){
+  const {data:{session:s}}=await supabase.auth.getSession()
+  if(!s?.access_token)throw new Error('Your session expired. Please sign in again.')
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/web-push-subscribe`,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':`Bearer ${s.access_token}`,
+      'apikey':SUPABASE_PUBLISHABLE_KEY
+    },
+    body:JSON.stringify(payload)
+  })
+  const result=await response.json().catch(()=>({}))
+  if(!response.ok)throw new Error(result?.error||'Unable to configure push notifications.')
+  return result
+}
+async function registerPushSubscription(){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+    throw new Error('Background push notifications are not supported on this device/browser.')
+  }
+
+  const reg=await navigator.serviceWorker.ready
+  const keyResult=await pushFunction({action:'public_key'})
+  const publicKey=String(keyResult?.public_key||'')
+  if(!publicKey)throw new Error('Push notifications are not configured on the server yet.')
+
+  let subscription=await reg.pushManager.getSubscription()
+  if(!subscription){
+    subscription=await reg.pushManager.subscribe({
+      userVisibleOnly:true,
+      applicationServerKey:urlBase64ToUint8Array(publicKey)
+    })
+  }
+
+  await pushFunction({
+    action:'register',
+    subscription:subscription.toJSON()
+  })
+
+  return subscription
+}
+async function unregisterPushSubscription(){
+  try{
+    const reg=await navigator.serviceWorker?.ready
+    const subscription=await reg?.pushManager?.getSubscription?.()
+    if(subscription){
+      await pushFunction({
+        action:'unregister',
+        endpoint:subscription.endpoint
+      }).catch(()=>{})
+      await subscription.unsubscribe().catch(()=>{})
+    }
+  }catch{}
+}
 async function enableMailNotifications(){
   if(!('Notification' in window)){
     closeNotificationPrompt()
     refreshNotificationButton()
     return false
   }
+
   const permission=Notification.permission==='granted'
     ?'granted'
     :await Notification.requestPermission()
-  const enabled=permission==='granted'
-  localStorage.setItem(NOTIFY_ENABLED_KEY,String(enabled))
-  if(enabled)localStorage.removeItem(NOTIFY_NEVER_ASK_KEY)
-  closeNotificationPrompt()
-  refreshNotificationButton()
-  if(enabled){
-    try{
-      const reg=await navigator.serviceWorker?.ready
-      await reg?.showNotification('Email notifications enabled',{
-        body:'You’ll be alerted when new mail arrives while the app is active.',
-        icon:'/assets/icon-192x192.png',
-        badge:'/assets/icon-192x192.png',
-        tag:'dfl-notifications-enabled',
-        data:{url:'/mail.html'}
-      })
-    }catch{}
+
+  if(permission!=='granted'){
+    localStorage.setItem(NOTIFY_ENABLED_KEY,'false')
+    closeNotificationPrompt()
+    refreshNotificationButton()
+    return false
   }
-  return enabled
+
+  try{
+    await registerPushSubscription()
+    localStorage.setItem(NOTIFY_ENABLED_KEY,'true')
+    localStorage.removeItem(NOTIFY_NEVER_ASK_KEY)
+    closeNotificationPrompt()
+    refreshNotificationButton()
+
+    const reg=await navigator.serviceWorker?.ready
+    await reg?.showNotification('Email notifications enabled',{
+      body:'Background email alerts are enabled on this device.',
+      icon:'/assets/icon-192x192.png',
+      badge:'/assets/icon-192x192.png',
+      tag:'dfl-notifications-enabled',
+      data:{url:'/mail.html'}
+    })
+    return true
+  }catch(error){
+    localStorage.setItem(NOTIFY_ENABLED_KEY,'false')
+    closeNotificationPrompt()
+    refreshNotificationButton()
+    alert(error?.message||'Unable to enable background notifications.')
+    return false
+  }
 }
-notificationTopbarBtn?.addEventListener('click',()=>{
+notificationTopbarBtn?.addEventListener('click',async()=>{
   if(notificationsEnabled()){
+    await unregisterPushSubscription()
     localStorage.setItem(NOTIFY_ENABLED_KEY,'false')
     refreshNotificationButton()
   }else{
