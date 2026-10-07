@@ -1700,7 +1700,7 @@ async function archiveActiveMessage(){
   if(btn){btn.disabled=true;btn.textContent='Archiving…'}
   try{
     await setMessageState('archive')
-    closeMobileReader();renderReader();await loadMessages()
+    closeMobileReader();renderReader();await loadMessages({reset:true,force:true})
   }catch(error){
     alert(error.message||'Unable to archive email.')
     if(btn){btn.disabled=false;btn.textContent='Archive'}
@@ -1711,7 +1711,7 @@ async function moveActiveMessage(target){
   if(!activeMessageId||!activeAccount||!target)return
   try{
     await callMailFunction({action:'move',folder:messageFolder(activeMessageId),target,uid:messageUid(activeMessageId),mailbox_email:messageMailbox(activeMessageId)})
-    closeMobileReader();renderReader();await loadMessages()
+    closeMobileReader();renderReader();await loadMessages({reset:true,force:true})
   }catch(error){alert(error.message||'Unable to move email.')}
 }
 async function runBulkMove(target){
@@ -1742,7 +1742,7 @@ async function deleteActiveMessage(){
     await callMailFunction({action:'delete',folder:sourceFolder,uid:messageUid(activeMessageId),mailbox_email:messageMailbox(activeMessageId)})
     closeMobileReader()
     renderReader()
-    await loadMessages()
+    await loadMessages({reset:true,force:true})
   }catch(error){
     alert(error.message||'Unable to delete email.')
     if(button){button.disabled=false;button.textContent=permanent?'Delete forever':'Delete'}
