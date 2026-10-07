@@ -245,8 +245,41 @@ function undoPendingSend(){
 
 async function callMailFunction(payload){
   const {data:{session:s}}=await supabase.auth.getSession()
-  const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${s.access_token}`,'apikey':SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify(payload)})
-  const result=await res.json();if(!res.ok)throw new Error(result.error||'Mail request failed.');return result.data
+  if(!s?.access_token)throw new Error('Your session expired. Please sign in again.')
+
+  const controller=new AbortController()
+  const timeoutMs=20000
+  const timer=setTimeout(()=>controller.abort(),timeoutMs)
+
+  try{
+    const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':`Bearer ${s.access_token}`,
+        'apikey':SUPABASE_PUBLISHABLE_KEY
+      },
+      body:JSON.stringify(payload),
+      signal:controller.signal
+    })
+
+    let result={}
+    try{
+      result=await res.json()
+    }catch{
+      throw new Error(`Mail server returned an invalid response (HTTP ${res.status}).`)
+    }
+
+    if(!res.ok)throw new Error(result?.error||`Mail request failed (HTTP ${res.status}).`)
+    return result.data
+  }catch(error){
+    if(error?.name==='AbortError'){
+      throw new Error('Mail server timed out after 20 seconds. The mailbox connection or Edge Function is not responding.')
+    }
+    throw error
+  }finally{
+    clearTimeout(timer)
+  }
 }
 
 function mailboxSnapshotKey(mailbox,folder){
@@ -282,8 +315,9 @@ function restoreMailboxSnapshot(){
   return true
 }
 function renderMessageListSkeleton(count){
-  const total=Math.max(0,Number(count)||0)
-  messageList.innerHTML=Array.from({length:total},(_,i)=>`
+  const total=Math.max(2,Number(count)||0)
+  const mailboxLabel=activeAccount?.email?esc(activeAccount.email):'mailbox'
+  messageList.innerHTML=`<div class="empty-reader" style="height:auto;min-height:72px;padding:18px 20px"><strong>Loading mail…</strong><span>Connecting to ${mailboxLabel}</span></div>`+Array.from({length:total},(_,i)=>`
     <div class="mail-skeleton-row" aria-hidden="true">
       <span class="mail-skeleton-circle"></span>
       <span class="mail-skeleton-star"></span>
