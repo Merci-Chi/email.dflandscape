@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dfl-email-mobile-actions-grid-2'
+const CACHE_NAME = 'dfl-email-notifications-20261006-1'
 const APP_SHELL = [
   '/styles.css',
   '/app.js',
@@ -136,4 +136,30 @@ self.addEventListener('message', event => {
       )
     )
   }
+})
+
+
+self.addEventListener('push', event => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { body: event.data ? event.data.text() : '' }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(
+      data.title || 'New email',
+      {
+        body: data.body || '',
+        icon: '/assets/icon-192x192.png',
+        badge: '/assets/icon-192x192.png',
+        tag: data.tag || 'dfl-mail-push',
+        renotify: true,
+        data: {
+          url: data.url || '/mail.html'
+        }
+      }
+    )
+  )
 })
