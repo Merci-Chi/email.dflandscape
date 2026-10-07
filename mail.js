@@ -84,6 +84,7 @@ const mobileMenuBtn=document.getElementById('mobileMenuBtn'),mobileMenuClose=doc
 const manageEmailsLink=document.getElementById('manageEmailsLink')
 const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn'),headerSelectAllBtn=document.getElementById('headerSelectAllBtn')
 const networkBanner=document.getElementById('networkBanner')
+const emailFullscreenModal=document.getElementById('emailFullscreenModal'),emailFullscreenBody=document.getElementById('emailFullscreenBody'),closeEmailFullscreenBtn=document.getElementById('closeEmailFullscreen')
 const NOTIFY_ENABLED_KEY='dfl_email_notifications_enabled',NOTIFY_SOUND_KEY='dfl_email_notification_sound'
 let backgroundCheckTimer=null,mailRules=[],snoozedMessageKeys=new Set(),pendingUndoTimer=null,pendingUndoPayload=null
 
@@ -347,9 +348,12 @@ function restoreMailboxSnapshot(){
   return true
 }
 function renderMessageListSkeleton(count){
-  const total=Math.max(2,Number(count)||0)
-  const mailboxLabel=activeAccount?.email?esc(activeAccount.email):'mailbox'
-  messageList.innerHTML=`<div class="empty-reader" style="height:auto;min-height:72px;padding:18px 20px"><strong>Loading mail…</strong><span>Connecting to ${mailboxLabel}</span></div>`+Array.from({length:total},(_,i)=>`
+  const total=2
+  const mailboxLabel=activeFolder==='Inbox'
+    ?'all inboxes'
+    :(activeAccount?.email?esc(activeAccount.email):'mailbox')
+
+  messageList.innerHTML=Array.from({length:total},(_,i)=>`
     <div class="mail-skeleton-row" aria-hidden="true">
       <span class="mail-skeleton-circle"></span>
       <span class="mail-skeleton-star"></span>
@@ -360,7 +364,7 @@ function renderMessageListSkeleton(count){
       </span>
       <span class="mail-skeleton-line mail-skeleton-time" style="--skeleton-delay:${i*35+10}ms"></span>
     </div>
-  `).join('')
+  `).join('')+`<div class="empty-reader" style="height:auto;min-height:72px;padding:18px 20px"><strong>Loading mail…</strong><span>Connecting to ${mailboxLabel}</span></div>`
 }
 function renderReaderSkeleton(){
   if(!readerPanel)return
@@ -1373,10 +1377,63 @@ function renderThreadConversation(messages,active){
       </article>`).join('')}
   </section>`
 }
+function compactEmailWhitespace(container){
+  if(!container)return
+  const roots=container.querySelectorAll('.reader-body,.thread-message-body,.email-fullscreen-message')
+  roots.forEach(root=>{
+    root.querySelectorAll('div,p,td,tr').forEach(el=>{
+      const text=String(el.textContent||'').replace(/\u00a0/g,' ').trim()
+      const hasVisual=!!el.querySelector('img,svg,video,canvas,iframe,button,input,table')
+      const style=(el.getAttribute('style')||'').toLowerCase()
+      const hasBackground=style.includes('background')||style.includes('background-image')
+      const attrHeight=Number(String(el.getAttribute('height')||'').replace(/[^0-9.]/g,'')||0)
+      const inlineHeight=Number((style.match(/height\s*:\s*(\d+(?:\.\d+)?)px/)||[])[1]||0)
+      const isLargeSpacer=!text&&!hasVisual&&!hasBackground&&(attrHeight>36||inlineHeight>36)
+
+      if(isLargeSpacer)el.classList.add('dfl-collapsed-spacer')
+    })
+  })
+}
+
+function fullscreenEmailMarkup(message){
+  const mailbox=message?.mailbox_email||activeAccount?.email||''
+  return `
+    <article class="email-fullscreen-message">
+      <div class="eyebrow dark">Message</div>
+      <h2>${esc(message?.subject||'(No subject)')}</h2>
+      <div class="email-fullscreen-meta">
+        From: ${esc(message?.sender||message?.from||'')}<br>
+        To: ${esc(message?.to||mailbox)}<br>
+        Mailbox: ${esc(mailbox)}<br>
+        ${esc(formatFullDate(message?.date))}
+      </div>
+      ${renderThreadConversation([message],message)}
+    </article>
+  `
+}
+
+function openEmailFullscreen(){
+  if(!activeMessage||!emailFullscreenModal||!emailFullscreenBody)return
+  emailFullscreenBody.innerHTML=fullscreenEmailMarkup(activeMessage)
+  compactEmailWhitespace(emailFullscreenBody)
+  emailFullscreenModal.classList.remove('hidden')
+  document.body.classList.add('email-fullscreen-open')
+}
+
+function closeEmailFullscreen(){
+  emailFullscreenModal?.classList.add('hidden')
+  document.body.classList.remove('email-fullscreen-open')
+}
+
+closeEmailFullscreenBtn?.addEventListener('click',closeEmailFullscreen)
+emailFullscreenModal?.addEventListener('click',e=>{if(e.target===emailFullscreenModal)closeEmailFullscreen()})
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!emailFullscreenModal?.classList.contains('hidden'))closeEmailFullscreen()})
+
 function wireReaderActions(message,sourceFolder){
   document.getElementById('replyMessageBtn')?.addEventListener('click',()=>openReplyComposer(message))
   document.getElementById('replyAllMessageBtn')?.addEventListener('click',()=>openReplyAllComposer(message))
   document.getElementById('forwardMessageBtn')?.addEventListener('click',()=>openForwardComposer(message))
+  document.getElementById('expandMessageBtn')?.addEventListener('click',openEmailFullscreen)
   document.getElementById('readMessageBtn')?.addEventListener('click',()=>toggleActiveReadState())
   document.getElementById('starMessageBtn')?.addEventListener('click',()=>toggleActiveStar())
   document.getElementById('archiveMessageBtn')?.addEventListener('click',archiveActiveMessage)
@@ -1397,6 +1454,7 @@ function renderLoadedMessage(message,threadMessages=[message],{preserveScroll=fa
         <button type="button" class="message-action-btn" id="replyMessageBtn" aria-label="Reply" title="Reply"><i data-lucide="reply"></i><span>Reply</span></button>
         <button type="button" class="message-action-btn" id="replyAllMessageBtn" aria-label="Reply all" title="Reply all"><i data-lucide="reply-all"></i><span>Reply all</span></button>
         <button type="button" class="message-action-btn" id="forwardMessageBtn" aria-label="Forward" title="Forward"><i data-lucide="forward"></i><span>Forward</span></button>
+        <button type="button" class="message-action-btn" id="expandMessageBtn" aria-label="Expand email" title="Expand email"><i data-lucide="maximize-2"></i><span>Expand</span></button>
         <button type="button" class="message-action-btn" id="readMessageBtn" aria-label="${message.seen===false?'Mark read':'Mark unread'}" title="${message.seen===false?'Mark read':'Mark unread'}"><i data-lucide="${message.seen===false?'mail-open':'mail'}"></i><span>${message.seen===false?'Mark read':'Mark unread'}</span></button>
         <button type="button" class="message-action-btn" id="starMessageBtn" aria-label="${message.flagged?'Unstar':'Star'}" title="${message.flagged?'Unstar':'Star'}"><i data-lucide="star"></i><span>${message.flagged?'Unstar':'Star'}</span></button>
       </div>
@@ -1413,6 +1471,7 @@ function renderLoadedMessage(message,threadMessages=[message],{preserveScroll=fa
     ${renderThreadConversation(threadMessages,message)}
     ${renderMessageAttachments(message)}
   </article>`
+  compactEmailWhitespace(readerPanel)
   window.lucide?.createIcons();
   wireReaderActions(message,sourceFolder)
   if(window.matchMedia('(max-width:900px)').matches)readerPanel.classList.add('mobile-open')
