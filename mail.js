@@ -452,7 +452,8 @@ async function checkForNewMail(){
 }
 function startBackgroundMailChecks(){
   clearInterval(backgroundCheckTimer)
-  checkForNewMail()
+  // Do not immediately open more IMAP sessions while the first inbox is loading.
+  // Background polling starts after the first 60-second interval.
   backgroundCheckTimer=setInterval(checkForNewMail,60000)
 }
 async function applyLaunchTarget(){
@@ -685,8 +686,10 @@ async function loadMessages({reset=true}={}){
     updateLoadMore()
     if(reset)saveMailboxSnapshot()
     updateNetworkBanner()
-    await loadUnreadCount()
-    await refreshUnreadBadge()
+    // Render the inbox first. Badge/count refreshes can happen afterward without
+    // blocking the visible message list.
+    loadUnreadCount().catch(()=>{})
+    refreshUnreadBadge().catch(()=>{})
   }catch(e){
     if(reset){
       const restored=restoreMailboxSnapshot()
