@@ -358,13 +358,13 @@ function renderMailboxes(){
   const boxes=adminState.mailboxes||[]
   if(!boxes.length){host.innerHTML='<div class="admin-empty">No @dflandscape.com email accounts yet.</div>';return}
   host.innerHTML=boxes.map(box=>{
-    const access=box.users||[]
+    const access=(box.users||[]).filter(u=>String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
     return `<div class="admin-email-row"><div class="admin-email-copy"><strong>${esc(box.email)}</strong><span>${box.pending?'Requested email — not active yet':'Active mailbox'}</span></div><div class="admin-row-right"><span class="admin-badge ${box.pending?'pending':'active'}">${box.pending?'Pending':'Active'}</span>${access.length?access.map(u=>`<span class="access-chip">${esc(u.display_name||u.email)}</span>`).join(''):'<span class="access-chip">No assigned users</span>'}</div></div>`
   }).join('')
 }
 function renderUsers(){
   const host=document.getElementById('companyUserList')
-  const users=adminState.users||[]
+  const users=(adminState.users||[]).filter(u=>String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
   if(!users.length){host.innerHTML='<div class="admin-empty">No users yet.</div>';return}
   host.innerHTML=users.map(u=>{
     const isAdmin=String(u.role||'').toLowerCase()==='admin'
