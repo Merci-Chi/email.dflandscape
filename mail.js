@@ -9,6 +9,28 @@ const {data:{session}}=await supabase.auth.getSession()
 if(!session?.user){location.replace('index.html');throw new Error('Not authenticated')}
 
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
+const sessionMailboxCache=new Map()
+function sessionMailboxCacheKey(mailbox=activeAccount?.email,folder=activeFolder){
+  return mailbox?`${mailbox}|${folder}|${mailSort?.value||'newest'}`:''
+}
+function saveSessionMailboxCache(){
+  if(!activeAccount||(searchInput?.value||'').trim())return
+  const key=sessionMailboxCacheKey()
+  if(!key)return
+  sessionMailboxCache.set(key,{
+    messages:currentMessages.map(message=>({...message})),
+    hasMore:mailHasMore
+  })
+}
+function restoreSessionMailboxCache(){
+  const key=sessionMailboxCacheKey()
+  const cached=key?sessionMailboxCache.get(key):null
+  if(!cached)return false
+  currentMessages=(cached.messages||[]).map(message=>({...message}))
+  mailHasMore=cached.hasMore===true
+  mailPage=1
+  return true
+}
 function updateOpenMessageUrl(mailbox='',folder='',uid=''){
   const url=new URL(location.href)
 
@@ -569,7 +591,30 @@ function renderAccounts(){
   if(!accountList)return
   if(!accounts.length){accountList.innerHTML='<div class="no-access">No mailbox access.</div>';return}
   accountList.innerHTML=accounts.map(a=>`<button class="account-btn ${activeAccount?.email===a.email?'active':''}" data-email="${esc(a.email)}"><span class="account-copy"><strong>${esc(a.name)}</strong><span>${esc(a.email)}</span></span></button>`).join('')
-  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{activeAccount=accounts.find(a=>a.email===b.dataset.email);activeMessageId=null;activeMessage=null;clearOpenMessage();clearFullSearchCache();renderAccounts();renderComposeAccounts();await loadMessages({reset:true});renderReader();closeMobileMenu()})
+  accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{
+    activeAccount=accounts.find(a=>a.email===b.dataset.email)
+    activeMessageId=null
+    activeMessage=null
+    clearOpenMessage()
+    clearFullSearchCache()
+    renderAccounts()
+    renderComposeAccounts()
+    mailboxHeading.textContent=activeFolder==='Junk'?'Spam':activeFolder
+    mailboxAddress.textContent=activeAccount?.email||''
+
+    if(restoreSessionMailboxCache()){
+      await loadSnoozedState()
+      renderMessages()
+      updateLoadMore()
+      updateNetworkBanner()
+      loadUnreadCount()
+    }else{
+      await loadMessages({reset:true})
+    }
+
+    renderReader()
+    closeMobileMenu()
+  })
 }
 function clearFullSearchCache(){
   fullSearchMessages=[]
@@ -795,6 +840,7 @@ function senderDisplayEmail(message){
 }
 
 function renderMessages(){
+  saveSessionMailboxCache()
   const threads=groupedMessages()
   messageList.innerHTML=threads.length?threads.map(thread=>{
     const m=thread.latest
@@ -1622,7 +1668,19 @@ document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',a
   selectedIds.clear();selectionMode=false
   document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn))
   if(mailFilter)mailFilter.value='all'
-  await loadMessages({reset:true})
+  mailboxHeading.textContent=activeFolder==='Junk'?'Spam':activeFolder
+  mailboxAddress.textContent=activeAccount?.email||''
+
+  if(restoreSessionMailboxCache()){
+    await loadSnoozedState()
+    renderMessages()
+    updateLoadMore()
+    updateNetworkBanner()
+    loadUnreadCount()
+  }else{
+    await loadMessages({reset:true})
+  }
+
   renderReader()
   closeMobileMenu()
 }))
