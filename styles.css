@@ -1572,3 +1572,19 @@ body.email-fullscreen-open{overflow:hidden}
   .notification-prompt-backdrop{padding:12px}
   .notification-prompt-card{padding:22px 18px}
 }
+
+
+.notification-bell-icon{
+  width:18px;
+  height:18px;
+  flex:0 0 18px;
+}
+.notification-prompt-icon{
+  display:grid;
+  place-items:center;
+}
+.notification-prompt-icon svg{
+  width:42px;
+  height:42px;
+  color:var(--green2);
+}
