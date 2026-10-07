@@ -11,6 +11,7 @@ if(!session?.user){location.replace('index.html');throw new Error('Not authentic
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
 const sessionMailboxCache=new Map()
 function sessionMailboxCacheKey(mailbox=activeAccount?.email,folder=activeFolder){
+  if(folder==='Inbox')return `ALL|Inbox|${mailSort?.value||'newest'}`
   return mailbox?`${mailbox}|${folder}|${mailSort?.value||'newest'}`:''
 }
 function saveSessionMailboxCache(){
@@ -46,11 +47,14 @@ function updateOpenMessageUrl(mailbox='',folder='',uid=''){
   history.replaceState({},'',url.pathname+url.search+url.hash)
 }
 function saveOpenMessage(){
-  if(!activeAccount||!activeMessageId)return
+  if(!activeMessageId)return
+  const row=findMessage(activeMessageId)
+  const mailbox=activeMessage?.mailbox_email||row?.mailbox_email||activeAccount?.email||''
+  const uid=activeMessage?.uid||row?.uid||activeMessageId
   updateOpenMessageUrl(
-    activeAccount.email,
-    activeMessage?.sourceFolder||messageFolder(activeMessageId)||activeFolder,
-    activeMessageId
+    mailbox,
+    activeMessage?.sourceFolder||row?.sourceFolder||activeFolder,
+    uid
   )
 }
 function clearOpenMessage(){
@@ -96,6 +100,7 @@ async function loadSnoozedState(){
   snoozedMessageKeys=new Set()
   if(!activeAccount)return
   const now=new Date().toISOString()
+
   try{
     await supabase
       .from('dflandscape_snoozed_mail')
@@ -103,13 +108,17 @@ async function loadSnoozedState(){
       .eq('user_id',session.user.id)
       .lte('snooze_until',now)
 
-    const {data,error}=await supabase
+    let query=supabase
       .from('dflandscape_snoozed_mail')
       .select('mailbox_email,folder,uid,snooze_until')
       .eq('user_id',session.user.id)
-      .eq('mailbox_email',activeAccount.email)
       .gt('snooze_until',now)
 
+    if(activeFolder!=='Inbox'){
+      query=query.eq('mailbox_email',activeAccount.email)
+    }
+
+    const {data,error}=await query
     if(error)throw error
     ;(data||[]).forEach(row=>snoozedMessageKeys.add(snoozedKey(row.mailbox_email,row.folder,row.uid)))
   }catch(error){
@@ -462,8 +471,8 @@ async function checkForNewMail(){
         if(newlyArrived.length){
           await applyRulesToMessages(account.email,newlyArrived)
           await showMailNotification(account.email,newlyArrived[0],Math.max(0,newlyArrived.length-1))
-          if(activeAccount?.email===account.email&&activeFolder==='Inbox'&&!(searchInput?.value||'').trim()){
-            await loadMessages({reset:true})
+          if(activeFolder==='Inbox'&&!(searchInput?.value||'').trim()){
+            await loadMessages({reset:true,force:true})
           }
         }
       }
@@ -599,8 +608,8 @@ function renderAccounts(){
     clearFullSearchCache()
     renderAccounts()
     renderComposeAccounts()
-    mailboxHeading.textContent=activeFolder==='Junk'?'Spam':activeFolder
-    mailboxAddress.textContent=activeAccount?.email||''
+    mailboxHeading.textContent=activeFolder==='Inbox'?'All inboxes':(activeFolder==='Junk'?'Spam':activeFolder)
+    mailboxAddress.textContent=activeFolder==='Inbox'?accounts.map(a=>a.email).join(' · '):(activeAccount?.email||'')
 
     if(restoreSessionMailboxCache()){
       await loadSnoozedState()
@@ -609,7 +618,7 @@ function renderAccounts(){
       updateNetworkBanner()
       loadUnreadCount()
     }else{
-      await loadMessages({reset:true})
+      await loadMessages({reset:true,force:true})
     }
 
     renderReader()
@@ -637,7 +646,7 @@ async function loadFullMailboxHeaders(){
       const result=await callMailFunction({
         action:'list',
         folder:activeFolder,
-        mailbox_email:activeAccount.email,
+        mailbox_email:row.mailbox_email||mailbox,
         query:'',
         page,
         page_size:100,
@@ -658,7 +667,7 @@ async function loadFullMailboxHeaders(){
   finally{fullSearchPromise=null}
 }
 
-async function loadMessages({reset=true}={}){
+async function loadMessages({reset=true,force=false}={}){
   if(!activeAccount)return
 
   const query=(searchInput?.value||'').trim()
@@ -692,6 +701,20 @@ async function loadMessages({reset=true}={}){
     if(reset)pendingMailReload=true
     return
   }
+
+  if(reset&&!force&&restoreSessionMailboxCache()){
+    mailboxHeading.textContent=activeFolder==='Inbox'?'All inboxes':(activeFolder==='Junk'?'Spam':activeFolder)
+    mailboxAddress.textContent=activeFolder==='Inbox'
+      ?accounts.map(a=>a.email).join(' · ')
+      :activeAccount.email
+    await loadSnoozedState()
+    renderMessages()
+    updateLoadMore()
+    updateNetworkBanner()
+    loadUnreadCount()
+    return
+  }
+
   mailLoading=true
 
   if(reset){
@@ -704,8 +727,10 @@ async function loadMessages({reset=true}={}){
     renderMessageListSkeleton(previousCount)
   }
 
-  mailboxHeading.textContent=activeFolder==='Junk'?'Spam':activeFolder
-  mailboxAddress.textContent=activeAccount.email
+  mailboxHeading.textContent=activeFolder==='Inbox'?'All inboxes':(activeFolder==='Junk'?'Spam':activeFolder)
+  mailboxAddress.textContent=activeFolder==='Inbox'
+    ?accounts.map(a=>a.email).join(' · ')
+    :activeAccount.email
 
   if(loadMoreBtn){
     loadMoreBtn.disabled=true
@@ -713,17 +738,64 @@ async function loadMessages({reset=true}={}){
   }
 
   try{
-    const result=await callMailFunction({
-      action:'list',
-      folder:activeFolder,
-      mailbox_email:activeAccount.email,
-      query:'',
-      page:0,
-      page_size:mailPageSize,
-      sort:mailSort?.value||'newest'
-    })
-    const pageMessages=Array.isArray(result)?result:(result?.messages||[])
-    currentMessages=pageMessages.slice(0,mailPageSize)
+    let pageMessages=[]
+
+    if(activeFolder==='Inbox'){
+      const results=await Promise.allSettled(
+        accounts.map(async account=>{
+          const result=await callMailFunction({
+            action:'list',
+            folder:'Inbox',
+            mailbox_email:account.email,
+            query:'',
+            page:0,
+            page_size:mailPageSize,
+            sort:mailSort?.value||'newest'
+          })
+
+          const rows=Array.isArray(result)?result:(result?.messages||[])
+          return rows.map(message=>({
+            ...message,
+            mailbox_email:account.email,
+            sourceFolder:'Inbox'
+          }))
+        })
+      )
+
+      const failures=[]
+      for(const result of results){
+        if(result.status==='fulfilled')pageMessages.push(...result.value)
+        else failures.push(result.reason)
+      }
+
+      if(!pageMessages.length&&failures.length){
+        throw failures[0]
+      }
+
+      pageMessages.sort((a,b)=>{
+        const delta=new Date(b.date||0)-new Date(a.date||0)
+        return (mailSort?.value||'newest')==='oldest'?-delta:delta
+      })
+      pageMessages=pageMessages.slice(0,mailPageSize)
+    }else{
+      const result=await callMailFunction({
+        action:'list',
+        folder:activeFolder,
+        mailbox_email:activeAccount.email,
+        query:'',
+        page:0,
+        page_size:mailPageSize,
+        sort:mailSort?.value||'newest'
+      })
+
+      const rows=Array.isArray(result)?result:(result?.messages||[])
+      pageMessages=rows.map(message=>({
+        ...message,
+        mailbox_email:activeAccount.email
+      }))
+    }
+
+    currentMessages=pageMessages
     mailHasMore=false
     mailPage=1
     await loadSnoozedState()
@@ -731,10 +803,7 @@ async function loadMessages({reset=true}={}){
     updateLoadMore()
     if(reset)saveMailboxSnapshot()
     updateNetworkBanner()
-    // Render the inbox first. Badge/count refreshes can happen afterward without
-    // blocking the visible message list.
-    loadUnreadCount().catch(()=>{})
-    refreshUnreadBadge().catch(()=>{})
+    await loadUnreadCount()
   }catch(e){
     if(reset){
       const restored=restoreMailboxSnapshot()
@@ -751,7 +820,7 @@ async function loadMessages({reset=true}={}){
     }
     if(pendingMailReload){
       pendingMailReload=false
-      queueMicrotask(()=>loadMessages({reset:true}))
+      queueMicrotask(()=>loadMessages({reset:true,force:true}))
     }
   }
 }
@@ -814,7 +883,7 @@ function groupedMessages(){
   const msgs=filteredMessages()
   const groups=new Map()
   for(const message of msgs){
-    const key=normalizeThreadSubject(message.subject)
+    const key=`${message.mailbox_email||activeAccount?.email||''}|${normalizeThreadSubject(message.subject)}`
     if(!groups.has(key))groups.set(key,[])
     groups.get(key).push(message)
   }
@@ -839,27 +908,53 @@ function senderDisplayEmail(message){
   return match?.[1]||raw
 }
 
+function messageKey(message){
+  if(!message)return ''
+  return `${message.mailbox_email||activeAccount?.email||''}|${message.uid}`
+}
+function findMessage(keyOrUid){
+  const value=String(keyOrUid||'')
+  return currentMessages.find(message=>
+    messageKey(message)===value ||
+    (String(message.uid)===value&&(!value.includes('|')))
+  )
+}
+function messageFolder(keyOrUid){
+  const row=findMessage(keyOrUid)
+  return row?.sourceFolder||activeFolder
+}
+function messageMailbox(keyOrUid){
+  const row=findMessage(keyOrUid)
+  return row?.mailbox_email||activeMessage?.mailbox_email||activeAccount?.email||''
+}
+function messageUid(keyOrUid){
+  const row=findMessage(keyOrUid)
+  return String(row?.uid||keyOrUid||'').split('|').pop()
+}
+
 function renderMessages(){
   saveSessionMailboxCache()
   const threads=groupedMessages()
   messageList.innerHTML=threads.length?threads.map(thread=>{
     const m=thread.latest
-    const selected=selectedIds.has(String(m.uid))
+    const key=messageKey(m)
+    const selected=selectedIds.has(key)
     const unread=thread.messages.some(x=>x.seen===false)
-    const active=activeMessageId&&thread.messages.some(x=>String(x.uid)===String(activeMessageId))
-    return `<div class="message-swipe-shell" data-shell-id="${esc(m.uid)}">
+    const active=activeMessageId&&thread.messages.some(x=>messageKey(x)===String(activeMessageId))
+    const sourceLabel=activeFolder==='Inbox'&&m.mailbox_email?`${m.mailbox_email} · `:''
+    return `<div class="message-swipe-shell" data-shell-id="${esc(key)}">
       <div class="swipe-action swipe-action-read">${m.seen===false?'Read':'Unread'}</div>
       <div class="swipe-action swipe-action-delete">Delete</div>
-      <div class="message-row-wrap ${unread?'unread':''} ${selected?'selected':''}" data-wrap-id="${esc(m.uid)}">
-        <button class="message-select ${selectionMode?'show':''}" data-select-id="${esc(m.uid)}" type="button" aria-label="${selected?'Deselect':'Select'} message">
+      <div class="message-row-wrap ${unread?'unread':''} ${selected?'selected':''}" data-wrap-id="${esc(key)}">
+        <button class="message-select ${selectionMode?'show':''}" data-select-id="${esc(key)}" type="button" aria-label="${selected?'Deselect':'Select'} message">
           <span class="selection-dot">${selected?'✓':''}</span>
         </button>
-        <button class="message-star ${m.flagged?'active':''}" data-star-id="${esc(m.uid)}" type="button" aria-label="${m.flagged?'Unstar':'Star'} message">★</button>
-        <button class="message-row ${unread?'unread':''} ${active?'active':''}" data-id="${esc(m.uid)}">
+        <button class="message-star ${m.flagged?'active':''}" data-star-id="${esc(key)}" type="button" aria-label="${m.flagged?'Unstar':'Star'} message">★</button>
+        <button class="message-row ${unread?'unread':''} ${active?'active':''}" data-id="${esc(key)}">
           <span class="sender">${esc(senderDisplayName(m))}</span>
           <span class="time">${esc(formatDate(m.date))}</span>
           <span class="subject">${esc(m.subject||'(No subject)')}${thread.count>1?` <span class="thread-count">(${thread.count})</span>`:''}</span>
-          <span class="snippet">${thread.count>1?'Conversation · ':''}${esc(senderDisplayEmail(m))}</span>
+          <span class="snippet">${esc(sourceLabel)}${thread.count>1?'Conversation · ':''}${esc(senderDisplayEmail(m))}</span>
           ${searchMatchLabel(m)}
         </button>
       </div>
@@ -878,18 +973,27 @@ function renderMessages(){
 }
 
 function visibleMessageIds(){
-  return filteredMessages().map(m=>String(m.uid))
-}
-function messageFolder(uid){
-  const row=currentMessages.find(x=>String(x.uid)===String(uid))
-  return row?.sourceFolder||activeFolder
+  return filteredMessages().map(messageKey)
 }
 async function loadUnreadCount(){
   const badge=document.getElementById('inboxUnreadCount')
   if(!badge||!activeAccount)return
+
   try{
-    const counts=await callMailFunction({action:'counts',mailbox_email:activeAccount.email})
-    const count=Number(counts?.Inbox||0)
+    let count=0
+
+    if(activeFolder==='Inbox'){
+      const results=await Promise.allSettled(
+        accounts.map(account=>callMailFunction({action:'counts',mailbox_email:account.email}))
+      )
+      count=results.reduce((sum,result)=>
+        sum+(result.status==='fulfilled'?Number(result.value?.Inbox||0):0),0
+      )
+    }else{
+      const counts=await callMailFunction({action:'counts',mailbox_email:activeAccount.email})
+      count=Number(counts?.Inbox||0)
+    }
+
     badge.textContent=String(count)
     badge.hidden=count<1
   }catch{}
@@ -963,7 +1067,7 @@ function attachMessageSwipeHandlers(){
       if(Math.abs(dx)<65||Math.abs(dx)<=Math.abs(dy)*1.15)return
       const uid=shell.dataset.shellId
       if(dx>0){
-        const m=currentMessages.find(x=>String(x.uid)===String(uid))
+        const m=findMessage(uid)
         const action=m?.seen===false?'mark_read':'mark_unread'
         try{await setMessageState(action,uid);if(m)m.seen=action==='mark_read';renderMessages()}catch(err){alert(err.message||'Unable to update message.')}
       }else{
@@ -971,7 +1075,12 @@ function attachMessageSwipeHandlers(){
         if(source==='Trash'){
           if(!confirm('Permanently delete this email?'))return
         }
-        try{await callMailFunction({action:'delete',folder:source,uid,mailbox_email:activeAccount.email});currentMessages=currentMessages.filter(x=>String(x.uid)!==String(uid));selectedIds.delete(String(uid));renderMessages()}catch(err){alert(err.message||'Unable to delete email.')}
+        try{
+          await callMailFunction({action:'delete',folder:source,uid:messageUid(uid),mailbox_email:messageMailbox(uid)})
+          currentMessages=currentMessages.filter(x=>messageKey(x)!==String(uid))
+          selectedIds.delete(String(uid))
+          renderMessages()
+        }catch(err){alert(err.message||'Unable to delete email.')}
       }
     },{passive:true})
   })
@@ -985,12 +1094,12 @@ async function runBulkAction(action){
   try{
     for(const uid of ids){
       await callMailFunction({action,folder:messageFolder(uid),uid,mailbox_email:activeAccount.email})
-      const row=currentMessages.find(x=>String(x.uid)===String(uid))
+      const row=findMessage(uid)
       if(action==='mark_read'&&row)row.seen=true
       if(action==='mark_unread'&&row)row.seen=false
       if(action==='star'&&row)row.flagged=true
       if(action==='unstar'&&row)row.flagged=false
-      if(action==='delete'||action==='archive')currentMessages=currentMessages.filter(x=>String(x.uid)!==String(uid))
+      if(action==='delete'||action==='archive')currentMessages=currentMessages.filter(x=>messageKey(x)!==String(uid))
     }
     exitSelectionMode()
   }catch(error){
@@ -1163,18 +1272,19 @@ function saveMessageCache(message){
       contentId:a.contentId||'',
       size:Number(a.size)||0
     }))}
-    localStorage.setItem(messageCacheKey(activeAccount.email,folder,message.uid),JSON.stringify(clean))
+    localStorage.setItem(messageCacheKey(message.mailbox_email||activeAccount.email,folder,message.uid),JSON.stringify(clean))
   }catch{}
 }
 async function loadThreadConversation(message){
   const key=normalizeThreadSubject(message.subject)
+  const mailbox=message.mailbox_email||activeAccount?.email||''
   const rows=currentMessages
-    .filter(row=>normalizeThreadSubject(row.subject)===key)
+    .filter(row=>(row.mailbox_email||activeAccount?.email||'')===mailbox&&normalizeThreadSubject(row.subject)===key)
     .slice(0,10)
   const loaded=await Promise.all(rows.map(async row=>{
     if(String(row.uid)===String(message.uid))return message
     const folder=row.sourceFolder||activeFolder
-    const cached=getCachedMessage(activeAccount.email,folder,row.uid)
+    const cached=getCachedMessage(row.mailbox_email||mailbox,folder,row.uid)
     if(cached)return {...cached,sourceFolder:folder}
     try{
       const item=await callMailFunction({
@@ -1245,7 +1355,7 @@ function renderLoadedMessage(message,threadMessages=[message],{preserveScroll=fa
     </div>
     <div class="eyebrow dark">Message</div>
     <h2>${esc(message.subject||'(No subject)')}</h2>
-    <div class="reader-meta">From: ${esc(message.sender||message.from||'')}<br>To: ${esc(message.to||activeAccount.email)}<br>${esc(formatFullDate(message.date))}</div>
+    <div class="reader-meta">From: ${esc(message.sender||message.from||'')}<br>To: ${esc(message.to||message.mailbox_email||activeAccount.email)}<br>${esc(formatFullDate(message.date))}</div>
     ${renderThreadConversation(threadMessages,message)}
     ${renderMessageAttachments(message)}
   </article>`
@@ -1254,41 +1364,50 @@ function renderLoadedMessage(message,threadMessages=[message],{preserveScroll=fa
   if(window.matchMedia('(max-width:900px)').matches)readerPanel.classList.add('mobile-open')
   readerPanel.scrollTop=preserveScroll?previousScroll:0
 }
-async function loadMessage(uid,{sourceFolderOverride=''}={}){
-  activeMessageId=uid
-  const sourceFolder=sourceFolderOverride||messageFolder(uid)||activeFolder
-  const cached=getCachedMessage(activeAccount.email,sourceFolder,uid)
+async function loadMessage(keyOrUid,{sourceFolderOverride='',mailboxOverride=''}={}){
+  const row=findMessage(keyOrUid)
+  const uid=String(row?.uid||keyOrUid||'').split('|').pop()
+  const mailbox=mailboxOverride||row?.mailbox_email||activeAccount?.email||''
+  const sourceFolder=sourceFolderOverride||row?.sourceFolder||activeFolder
+  activeMessageId=row?messageKey(row):String(keyOrUid)
+
+  const cached=getCachedMessage(mailbox,sourceFolder,uid)
   if(cached){
     cached.sourceFolder=sourceFolder
+    cached.mailbox_email=mailbox
     activeMessage=cached
     saveOpenMessage()
     renderLoadedMessage(cached,[cached])
   }else{
     renderReaderSkeleton()
   }
+
   try{
-    const m=await callMailFunction({action:'get',folder:sourceFolder,uid,mailbox_email:activeAccount.email})
+    const m=await callMailFunction({action:'get',folder:sourceFolder,uid,mailbox_email:mailbox})
     m.sourceFolder=sourceFolder
-    if(String(activeMessageId)!==String(uid))return
+    m.mailbox_email=mailbox
+    if(String(activeMessageId)!==String(row?messageKey(row):keyOrUid))return
     activeMessage=m
     saveOpenMessage()
     saveMessageCache(m)
     renderLoadedMessage(m,[m],{preserveScroll:!!cached})
+
     if(m.seen===false){
-      callMailFunction({action:'mark_read',folder:sourceFolder,uid,mailbox_email:activeAccount.email}).then(()=>{
-        const row=currentMessages.find(x=>String(x.uid)===String(uid))
-        if(row)row.seen=true
+      callMailFunction({action:'mark_read',folder:sourceFolder,uid,mailbox_email:mailbox}).then(()=>{
+        const listRow=findMessage(activeMessageId)
+        if(listRow)listRow.seen=true
         if(activeMessage&&String(activeMessage.uid)===String(uid))activeMessage.seen=true
         renderMessages()
       }).catch(()=>{})
     }
+
     loadThreadConversation(m).then(threadMessages=>{
-      if(String(activeMessageId)===String(uid)&&threadMessages.length>1){
+      if(activeMessage&&String(activeMessage.uid)===String(uid)&&threadMessages.length>1){
         renderLoadedMessage(m,threadMessages,{preserveScroll:true})
       }
     }).catch(()=>{})
   }catch(error){
-    if(!cached&&String(activeMessageId)===String(uid)){
+    if(!cached){
       readerPanel.innerHTML=`<div class="empty-reader"><strong>Unable to open email</strong><span>${esc(error.message||'Try again.')}</span></div>`
       if(window.matchMedia('(max-width:900px)').matches)readerPanel.classList.add('mobile-open')
     }
@@ -1474,9 +1593,14 @@ async function openForwardComposer(message){
   })
 }
 
-async function setMessageState(action,uid=activeMessageId){
-  if(!uid||!activeAccount)return
-  await callMailFunction({action,folder:messageFolder(uid),uid,mailbox_email:activeAccount.email})
+async function setMessageState(action,keyOrUid=activeMessageId){
+  if(!keyOrUid)return
+  await callMailFunction({
+    action,
+    folder:messageFolder(keyOrUid),
+    uid:messageUid(keyOrUid),
+    mailbox_email:messageMailbox(keyOrUid)
+  })
 }
 async function toggleMessageFlag(uid){
   const row=currentMessages.find(x=>String(x.uid)===String(uid))
@@ -1494,7 +1618,7 @@ async function toggleActiveStar(){
   try{
     await setMessageState(next?'star':'unstar')
     activeMessage.flagged=next
-    const row=currentMessages.find(x=>String(x.uid)===String(activeMessageId));if(row)row.flagged=next
+    const row=findMessage(activeMessageId);if(row)row.flagged=next
     const btn=document.getElementById('starMessageBtn');if(btn){const label=next?'Unstar':'Star';const span=btn.querySelector('span');if(span)span.textContent=label;btn.setAttribute('aria-label',label);btn.setAttribute('title',label)}
     renderMessages()
   }catch(error){alert(error.message||'Unable to update star.')}
@@ -1505,7 +1629,7 @@ async function toggleActiveReadState(){
   try{
     await setMessageState(markRead?'mark_read':'mark_unread')
     activeMessage.seen=markRead
-    const row=currentMessages.find(x=>String(x.uid)===String(activeMessageId));if(row)row.seen=markRead
+    const row=findMessage(activeMessageId);if(row)row.seen=markRead
     const btn=document.getElementById('readMessageBtn');if(btn){const label=markRead?'Mark unread':'Mark read';const span=btn.querySelector('span');if(span)span.textContent=label;btn.setAttribute('aria-label',label);btn.setAttribute('title',label)}
     renderMessages()
   }catch(error){alert(error.message||'Unable to update read status.')}
@@ -1526,7 +1650,7 @@ async function archiveActiveMessage(){
 async function moveActiveMessage(target){
   if(!activeMessageId||!activeAccount||!target)return
   try{
-    await callMailFunction({action:'move',folder:messageFolder(activeMessageId),target,uid:activeMessageId,mailbox_email:activeAccount.email})
+    await callMailFunction({action:'move',folder:messageFolder(activeMessageId),target,uid:messageUid(activeMessageId),mailbox_email:messageMailbox(activeMessageId)})
     closeMobileReader();renderReader();await loadMessages()
   }catch(error){alert(error.message||'Unable to move email.')}
 }
@@ -1536,8 +1660,8 @@ async function runBulkMove(target){
   setBulkBusy(true)
   try{
     for(const uid of ids){
-      await callMailFunction({action:'move',folder:messageFolder(uid),target,uid,mailbox_email:activeAccount.email})
-      currentMessages=currentMessages.filter(x=>String(x.uid)!==String(uid))
+      await callMailFunction({action:'move',folder:messageFolder(uid),target,uid:messageUid(uid),mailbox_email:messageMailbox(uid)})
+      currentMessages=currentMessages.filter(x=>messageKey(x)!==String(uid))
     }
     exitSelectionMode()
     await loadUnreadCount()
@@ -1555,7 +1679,7 @@ async function deleteActiveMessage(){
   const button=document.getElementById('deleteMessageBtn')
   if(button){button.disabled=true;button.textContent=permanent?'Deleting…':'Moving…'}
   try{
-    await callMailFunction({action:'delete',folder:sourceFolder,uid:activeMessageId,mailbox_email:activeAccount.email})
+    await callMailFunction({action:'delete',folder:sourceFolder,uid:messageUid(activeMessageId),mailbox_email:messageMailbox(activeMessageId)})
     closeMobileReader()
     renderReader()
     await loadMessages()
@@ -1668,8 +1792,8 @@ document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',a
   selectedIds.clear();selectionMode=false
   document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn))
   if(mailFilter)mailFilter.value='all'
-  mailboxHeading.textContent=activeFolder==='Junk'?'Spam':activeFolder
-  mailboxAddress.textContent=activeAccount?.email||''
+  mailboxHeading.textContent=activeFolder==='Inbox'?'All inboxes':(activeFolder==='Junk'?'Spam':activeFolder)
+  mailboxAddress.textContent=activeFolder==='Inbox'?accounts.map(a=>a.email).join(' · '):(activeAccount?.email||'')
 
   if(restoreSessionMailboxCache()){
     await loadSnoozedState()
@@ -1718,6 +1842,11 @@ document.getElementById('composeForm')?.addEventListener('submit',async e=>{
   const status=document.getElementById('composeStatus')
   status.textContent='Queuing…'
   try{
+    const from=composeFrom?.value||activeAccount?.email||''
+    if(!confirm(`Send this email from ${from}?`)){
+      status.textContent='Send cancelled.'
+      return
+    }
     queueUndoSend()
     status.textContent=''
   }catch(err){
