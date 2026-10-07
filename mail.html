@@ -55,10 +55,7 @@
         <span>Compose</span>
       </button>
 
-      <div class="mailbox-title">Mailboxes</div>
-      <nav id="accountList" class="account-list" aria-label="Email accounts"></nav>
-
-      <div class="folder-list">
+      <div class="folder-list all-inboxes-list">
         <button class="folder active" data-folder="Inbox">
           <span class="folder-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -69,6 +66,12 @@
           </span>
           <span class="folder-text">All inboxes</span><span class="folder-count" id="inboxUnreadCount" hidden>0</span>
         </button>
+      </div>
+
+      <div class="mailbox-title">Mailboxes</div>
+      <nav id="accountList" class="account-list" aria-label="Email accounts"></nav>
+
+      <div class="folder-list">
         <button class="folder" data-folder="Sent">
           <span class="folder-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
