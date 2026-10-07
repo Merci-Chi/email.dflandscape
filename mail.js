@@ -475,6 +475,8 @@ async function loadAdminVisibility(){
 
 async function loadAccounts(){
   const isAdmin=await loadAdminVisibility()
+  if(accountList)accountList.innerHTML='<div class="admin-loading">Loading mailboxes…</div>'
+
   try{
     let emails=[]
 
@@ -498,13 +500,27 @@ async function loadAccounts(){
     localStorage.setItem(`dfl_mail_accounts_v1:${session.user.id}`,JSON.stringify(accounts))
   }catch(error){
     console.error('Unable to load mailbox accounts:',error)
+
+    const message=String(error?.message||'Unknown mailbox loading error.')
+    if(accountList){
+      accountList.innerHTML=`
+        <div class="no-access">
+          <strong>Mailbox error</strong>
+          <div style="margin-top:6px;word-break:break-word">${esc(message)}</div>
+        </div>
+      `
+    }
+
     try{
       accounts=JSON.parse(localStorage.getItem(`dfl_mail_accounts_v1:${session.user.id}`)||'[]')
     }catch{accounts=[]}
-    if(!accounts.length){
-      if(accountList)accountList.innerHTML='<div class="no-access">Unable to load mailboxes.</div>'
-      return
-    }
+
+    if(!accounts.length)return
+  }
+
+  if(!accounts.length){
+    if(accountList)accountList.innerHTML='<div class="no-access">No active mailboxes found.</div>'
+    return
   }
 
   activeAccount=accounts[0]||null
