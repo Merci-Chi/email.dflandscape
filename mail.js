@@ -9,9 +9,10 @@ const {data:{session}}=await supabase.auth.getSession()
 if(!session?.user){location.replace('index.html');throw new Error('Not authenticated')}
 
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
+let allInboxesMode=true
 const sessionMailboxCache=new Map()
 function sessionMailboxCacheKey(mailbox=activeAccount?.email,folder=activeFolder){
-  if(folder==='Inbox')return `ALL|Inbox|${mailSort?.value||'newest'}`
+  if(folder==='Inbox'&&allInboxesMode)return `ALL|Inbox|${mailSort?.value||'newest'}`
   return mailbox?`${mailbox}|${folder}|${mailSort?.value||'newest'}`:''
 }
 function saveSessionMailboxCache(){
@@ -349,7 +350,7 @@ function restoreMailboxSnapshot(){
 }
 function renderMessageListSkeleton(count){
   const total=2
-  const mailboxLabel=activeFolder==='Inbox'
+  const mailboxLabel=activeFolder==='Inbox'&&allInboxesMode
     ?'all inboxes'
     :(activeAccount?.email?esc(activeAccount.email):'mailbox')
 
@@ -477,7 +478,9 @@ async function checkForNewMail(){
           await applyRulesToMessages(account.email,newlyArrived)
           await showMailNotification(account.email,newlyArrived[0],Math.max(0,newlyArrived.length-1))
           if(activeFolder==='Inbox'&&!(searchInput?.value||'').trim()){
-            await loadMessages({reset:true,force:true})
+            if(allInboxesMode||activeAccount?.email===account.email){
+              await loadMessages({reset:true,force:true})
+            }
           }
         }
       }
@@ -500,10 +503,14 @@ async function applyLaunchTarget(){
 
   if(mailbox){
     const match=accounts.find(a=>a.email.toLowerCase()===String(mailbox).toLowerCase())
-    if(match)activeAccount=match
+    if(match){
+      activeAccount=match
+      allInboxesMode=false
+    }
   }
 
   activeFolder=folder||'Inbox'
+  if(!mailbox&&activeFolder==='Inbox')allInboxesMode=true
   renderAccounts()
   document.querySelectorAll('.folder').forEach(btn=>btn.classList.toggle('active',(btn.dataset.folder||'Inbox')===activeFolder))
 
@@ -607,14 +614,17 @@ function renderAccounts(){
   accountList.innerHTML=accounts.map(a=>`<button class="account-btn ${activeAccount?.email===a.email?'active':''}" data-email="${esc(a.email)}"><span class="account-copy"><strong>${esc(a.name)}</strong><span>${esc(a.email)}</span></span></button>`).join('')
   accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{
     activeAccount=accounts.find(a=>a.email===b.dataset.email)
+    allInboxesMode=false
+    activeFolder='Inbox'
     activeMessageId=null
     activeMessage=null
     clearOpenMessage()
     clearFullSearchCache()
+    document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',false))
     renderAccounts()
     renderComposeAccounts()
-    mailboxHeading.textContent=activeFolder==='Inbox'?'All inboxes':(activeFolder==='Junk'?'Spam':activeFolder)
-    mailboxAddress.textContent=activeFolder==='Inbox'?accounts.map(a=>a.email).join(' · '):(activeAccount?.email||'')
+    mailboxHeading.textContent='Inbox'
+    mailboxAddress.textContent=activeAccount?.email||''
 
     if(restoreSessionMailboxCache()){
       await loadSnoozedState()
@@ -638,7 +648,7 @@ function clearFullSearchCache(){
 async function loadFullMailboxHeaders(){
   if(!activeAccount)return []
 
-  const key=activeFolder==='Inbox'
+  const key=activeFolder==='Inbox'&&allInboxesMode
     ?`ALL|Inbox|${mailSort?.value||'newest'}`
     :`${activeAccount.email}|${activeFolder}|${mailSort?.value||'newest'}`
 
@@ -647,7 +657,7 @@ async function loadFullMailboxHeaders(){
 
   fullSearchKey=key
   fullSearchPromise=(async()=>{
-    if(activeFolder==='Inbox'){
+    if(activeFolder==='Inbox'&&allInboxesMode){
       const results=await Promise.allSettled(accounts.map(async account=>{
         const all=[]
         let page=0
@@ -753,8 +763,10 @@ async function loadMessages({reset=true,force=false}={}){
   }
 
   if(reset&&!force&&restoreSessionMailboxCache()){
-    mailboxHeading.textContent=activeFolder==='Inbox'?'All inboxes':(activeFolder==='Junk'?'Spam':activeFolder)
-    mailboxAddress.textContent=activeFolder==='Inbox'
+    mailboxHeading.textContent=activeFolder==='Inbox'
+      ?(allInboxesMode?'All inboxes':'Inbox')
+      :(activeFolder==='Junk'?'Spam':activeFolder)
+    mailboxAddress.textContent=activeFolder==='Inbox'&&allInboxesMode
       ?accounts.map(a=>a.email).join(' · ')
       :activeAccount.email
     await loadSnoozedState()
@@ -777,8 +789,10 @@ async function loadMessages({reset=true,force=false}={}){
     renderMessageListSkeleton(previousCount)
   }
 
-  mailboxHeading.textContent=activeFolder==='Inbox'?'All inboxes':(activeFolder==='Junk'?'Spam':activeFolder)
-  mailboxAddress.textContent=activeFolder==='Inbox'
+  mailboxHeading.textContent=activeFolder==='Inbox'
+    ?(allInboxesMode?'All inboxes':'Inbox')
+    :(activeFolder==='Junk'?'Spam':activeFolder)
+  mailboxAddress.textContent=activeFolder==='Inbox'&&allInboxesMode
     ?accounts.map(a=>a.email).join(' · ')
     :activeAccount.email
 
@@ -790,7 +804,7 @@ async function loadMessages({reset=true,force=false}={}){
   try{
     let pageMessages=[]
 
-    if(activeFolder==='Inbox'){
+    if(activeFolder==='Inbox'&&allInboxesMode){
       const results=await Promise.allSettled(
         accounts.map(async account=>{
           const result=await callMailFunction({
@@ -991,7 +1005,7 @@ function renderMessages(){
     const selected=selectedIds.has(key)
     const unread=thread.messages.some(x=>x.seen===false)
     const active=activeMessageId&&thread.messages.some(x=>messageKey(x)===String(activeMessageId))
-    const sourceLabel=activeFolder==='Inbox'&&m.mailbox_email?`${m.mailbox_email} · `:''
+    const sourceLabel=activeFolder==='Inbox'&&allInboxesMode&&m.mailbox_email?`${m.mailbox_email} · `:''
     return `<div class="message-swipe-shell" data-shell-id="${esc(key)}">
       <div class="swipe-action swipe-action-read">${m.seen===false?'Read':'Unread'}</div>
       <div class="swipe-action swipe-action-delete">Delete</div>
@@ -1032,7 +1046,7 @@ async function loadUnreadCount(){
   try{
     let count=0
 
-    if(activeFolder==='Inbox'){
+    if(activeFolder==='Inbox'&&allInboxesMode){
       const results=await Promise.allSettled(
         accounts.map(account=>callMailFunction({action:'counts',mailbox_email:account.email}))
       )
@@ -1823,7 +1837,7 @@ searchInput?.addEventListener('input',()=>{
     return
   }
 
-  const key=activeFolder==='Inbox'
+  const key=activeFolder==='Inbox'&&allInboxesMode
     ?`ALL|Inbox|${mailSort?.value||'newest'}`
     :`${activeAccount?.email||''}|${activeFolder}|${mailSort?.value||'newest'}`
   if(fullSearchKey===key&&fullSearchMessages.length){
@@ -1907,6 +1921,7 @@ async function refreshMailboxKeepingSelection(){
 
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{
   activeFolder=btn.dataset.folder||'Inbox'
+  allInboxesMode=activeFolder==='Inbox'
   clearFullSearchCache()
   activeMessageId=null
   activeMessage=null
@@ -1914,8 +1929,12 @@ document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',a
   selectedIds.clear();selectionMode=false
   document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn))
   if(mailFilter)mailFilter.value='all'
-  mailboxHeading.textContent=activeFolder==='Inbox'?'All inboxes':(activeFolder==='Junk'?'Spam':activeFolder)
-  mailboxAddress.textContent=activeFolder==='Inbox'?accounts.map(a=>a.email).join(' · '):(activeAccount?.email||'')
+  mailboxHeading.textContent=activeFolder==='Inbox'
+    ?'All inboxes'
+    :(activeFolder==='Junk'?'Spam':activeFolder)
+  mailboxAddress.textContent=activeFolder==='Inbox'
+    ?accounts.map(a=>a.email).join(' · ')
+    :(activeAccount?.email||'')
 
   if(restoreSessionMailboxCache()){
     await loadSnoozedState()
