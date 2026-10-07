@@ -4,12 +4,15 @@ Static GitHub Pages frontend for `email.dflandscape.com`.
 
 ## Current setup
 
-- Supabase Auth handles the website login.
-- `don@dflandscape.com` is the only mailbox shown right now.
-- The mailbox page requires an active Supabase session.
-- Hostinger mailbox credentials are **not** stored in this repo.
-- Hostinger IMAP/SMTP secrets should stay in Supabase Edge Function Secrets.
+- Supabase Auth handles website login.
+- Users and mailboxes are separate concepts.
+- `dflandscape_mail_access` controls whether a login is active and whether it is an admin.
+- Admins (including Don and Kiara) can access every active mailbox.
+- `dflandscape_mailboxes` is the canonical list of real mailboxes.
+- `dflandscape_mailbox_permissions` assigns specific mailboxes to non-admin users.
+- Hostinger mailbox credentials are never stored in this repo.
+- Hostinger IMAP/SMTP passwords stay in Supabase Edge Function Secrets using names like `DF_MAIL_PASSWORD_ESTIMATES`.
 
-## Next backend step
+## Mail backend
 
-Connect the mailbox UI to a protected Supabase Edge Function that reads the Hostinger secrets and handles IMAP/SMTP server-side.
+The `dflandscape-mail` Edge Function handles IMAP/SMTP server-side and only permits active mailboxes registered in `dflandscape_mailboxes`.
