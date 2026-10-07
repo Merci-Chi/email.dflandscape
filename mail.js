@@ -766,7 +766,7 @@ async function loadAccounts(){
 function renderAccounts(){
   if(!accountList)return
   if(!accounts.length){accountList.innerHTML='<div class="no-access">No mailbox access.</div>';return}
-  accountList.innerHTML=accounts.map(a=>`<button class="account-btn ${activeAccount?.email===a.email?'active':''}" data-email="${esc(a.email)}"><span class="account-copy"><strong>${esc(a.name)}</strong><span>${esc(a.email)}</span></span></button>`).join('')
+  accountList.innerHTML=accounts.map(a=>`<button class="account-btn ${!allInboxesMode&&activeAccount?.email===a.email?'active':''}" data-email="${esc(a.email)}"><span class="account-copy"><strong>${esc(a.name)}</strong><span>${esc(a.email)}</span></span></button>`).join('')
   accountList.querySelectorAll('[data-email]').forEach(b=>b.onclick=async()=>{
     activeAccount=accounts.find(a=>a.email===b.dataset.email)
     allInboxesMode=false
@@ -2015,6 +2015,7 @@ document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',a
   clearOpenMessage()
   selectedIds.clear();selectionMode=false
   document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn))
+  renderAccounts()
   if(mailFilter)mailFilter.value='all'
   mailboxHeading.textContent=activeFolder==='Inbox'
     ?'All inboxes'
