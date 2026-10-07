@@ -781,15 +781,11 @@ function renderAccounts(){
     mailboxHeading.textContent='Inbox'
     mailboxAddress.textContent=activeAccount?.email||''
 
-    if(restoreSessionMailboxCache()){
-      await loadSnoozedState()
-      renderMessages()
-      updateLoadMore()
-      updateNetworkBanner()
-      loadUnreadCount()
-    }else{
-      await loadMessages({reset:true,force:true})
-    }
+    // Always refresh when switching mailboxes so one mailbox can never
+    // display stale rows cached from an earlier bad sync.
+    const switchedKey=sessionMailboxCacheKey(activeAccount?.email,'Inbox')
+    if(switchedKey)sessionMailboxCache.delete(switchedKey)
+    await loadMessages({reset:true,force:true})
 
     renderReader()
     closeMobileMenu()
