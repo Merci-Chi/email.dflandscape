@@ -330,6 +330,9 @@ mailRuleForm?.addEventListener('submit',async e=>{
 })
 
 
+const HIDDEN_ADMIN_EMAILS=new Set(['kiara@steadyhandsop.com'])
+function isHiddenAdminEmail(value=''){return HIDDEN_ADMIN_EMAILS.has(String(value||'').trim().toLowerCase())}
+
 let adminState={users:[],mailboxes:[]}
 async function adminApi(action,payload={}){
   const {data,error}=await supabase.functions.invoke('manage-email-users',{body:{action,...payload}})
@@ -358,13 +361,13 @@ function renderMailboxes(){
   const boxes=adminState.mailboxes||[]
   if(!boxes.length){host.innerHTML='<div class="admin-empty">No @dflandscape.com email accounts yet.</div>';return}
   host.innerHTML=boxes.map(box=>{
-    const access=(box.users||[]).filter(u=>String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
+    const access=(box.users||[]).filter(u=>!isHiddenAdminEmail(u.email)&&String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
     return `<div class="admin-email-row"><div class="admin-email-copy"><strong>${esc(box.email)}</strong><span>${box.pending?'Requested email — not active yet':'Active mailbox'}</span></div><div class="admin-row-right"><span class="admin-badge ${box.pending?'pending':'active'}">${box.pending?'Pending':'Active'}</span>${access.length?access.map(u=>`<span class="access-chip">${esc(u.display_name||u.email)}</span>`).join(''):'<span class="access-chip">No assigned users</span>'}</div></div>`
   }).join('')
 }
 function renderUsers(){
   const host=document.getElementById('companyUserList')
-  const users=(adminState.users||[]).filter(u=>String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
+  const users=(adminState.users||[]).filter(u=>!isHiddenAdminEmail(u.email)&&String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
   if(!users.length){host.innerHTML='<div class="admin-empty">No users yet.</div>';return}
   host.innerHTML=users.map(u=>{
     const isAdmin=String(u.role||'').toLowerCase()==='admin'
