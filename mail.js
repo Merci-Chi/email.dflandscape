@@ -437,7 +437,7 @@ function urlBase64ToUint8Array(base64String){
 async function pushFunction(payload){
   const {data:{session:s}}=await supabase.auth.getSession()
   if(!s?.access_token)throw new Error('Your session expired. Please sign in again.')
-  const response=await fetch(`${SUPABASE_URL}/functions/v1/web-push-subscribe`,{
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-web-push-subscribe`,{
     method:'POST',
     headers:{
       'Content-Type':'application/json',
