@@ -93,19 +93,42 @@ async function loadSidebarMailboxes(){
   if(!accountList)return
   accountList.innerHTML='<div class="admin-loading">Loading mailboxes…</div>'
   try{
-    const {data:{session:s}}=await supabase.auth.getSession()
-    const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':`Bearer ${s.access_token}`,
-        'apikey':SUPABASE_PUBLISHABLE_KEY
-      },
-      body:JSON.stringify({action:'mailboxes'})
-    })
-    const result=await res.json()
-    if(!res.ok)throw new Error(result?.error||'Unable to load mailboxes.')
-    const mailboxes=(result?.data||[]).filter(v=>String(v).toLowerCase().endsWith('@dflandscape.com'))
+    let mailboxes=[]
+
+    if(canManageEmails){
+      const {data,error}=await supabase
+        .from('dflandscape_mailboxes')
+        .select('email')
+        .eq('active',true)
+        .order('email')
+
+      if(error)throw error
+      mailboxes=(data||[]).map(row=>row.email)
+    }else{
+      const {data:{session:s}}=await supabase.auth.getSession()
+      const controller=new AbortController()
+      const timer=setTimeout(()=>controller.abort(),10000)
+
+      try{
+        const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'Authorization':`Bearer ${s.access_token}`,
+            'apikey':SUPABASE_PUBLISHABLE_KEY
+          },
+          body:JSON.stringify({action:'mailboxes'}),
+          signal:controller.signal
+        })
+        const result=await res.json()
+        if(!res.ok)throw new Error(result?.error||'Unable to load mailboxes.')
+        mailboxes=result?.data||[]
+      }finally{
+        clearTimeout(timer)
+      }
+    }
+
+    mailboxes=mailboxes.filter(v=>String(v).toLowerCase().endsWith('@dflandscape.com'))
     accountList.innerHTML=mailboxes.length
       ?mailboxes.map(m=>`<a class="account-btn" href="mail.html?mailbox=${encodeURIComponent(m)}" style="text-decoration:none"><span class="account-copy"><strong>${esc(String(m).split('@')[0])}</strong><span>${esc(m)}</span></span></a>`).join('')
       :'<div class="no-access">No mailbox access.</div>'
