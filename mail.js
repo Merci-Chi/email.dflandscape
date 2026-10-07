@@ -86,7 +86,8 @@ const manageEmailsLink=document.getElementById('manageEmailsLink')
 const bulkToolbar=document.getElementById('bulkToolbar'),bulkCount=document.getElementById('bulkCount'),bulkSelectAllBtn=document.getElementById('bulkSelectAllBtn'),headerSelectAllBtn=document.getElementById('headerSelectAllBtn')
 const networkBanner=document.getElementById('networkBanner')
 const emailFullscreenModal=document.getElementById('emailFullscreenModal'),emailFullscreenBody=document.getElementById('emailFullscreenBody'),closeEmailFullscreenBtn=document.getElementById('closeEmailFullscreen')
-const NOTIFY_ENABLED_KEY='dfl_email_notifications_enabled',NOTIFY_SOUND_KEY='dfl_email_notification_sound'
+const NOTIFY_ENABLED_KEY='dfl_email_notifications_enabled',NOTIFY_SOUND_KEY='dfl_email_notification_sound',NOTIFY_NEVER_ASK_KEY='dfl_email_notifications_never_ask'
+const notificationTopbarBtn=document.getElementById('notificationTopbarBtn'),notificationTopbarLabel=document.getElementById('notificationTopbarLabel'),notificationPrompt=document.getElementById('notificationPrompt'),notificationPromptEnable=document.getElementById('notificationPromptEnable'),notificationPromptLater=document.getElementById('notificationPromptLater'),notificationPromptNever=document.getElementById('notificationPromptNever')
 let backgroundCheckTimer=null,mailRules=[],snoozedMessageKeys=new Set(),pendingUndoTimer=null,pendingUndoPayload=null
 
 function normalizeThreadSubject(subject=''){
@@ -402,6 +403,76 @@ async function setAppUnreadBadge(total){
 function notificationsEnabled(){
   return localStorage.getItem(NOTIFY_ENABLED_KEY)==='true'&&'Notification' in window&&Notification.permission==='granted'
 }
+function notificationPromptSuppressed(){
+  return localStorage.getItem(NOTIFY_NEVER_ASK_KEY)==='true'
+}
+function refreshNotificationButton(){
+  if(!notificationTopbarBtn)return
+  const enabled=notificationsEnabled()
+  notificationTopbarBtn.classList.toggle('enabled',enabled)
+  if(notificationTopbarLabel)notificationTopbarLabel.textContent=enabled?'Notifications on':'Enable notifications'
+  notificationTopbarBtn.title=enabled?'Notifications are enabled':'Enable notifications'
+}
+function openNotificationPrompt(){
+  if(!notificationPrompt)return
+  if(!('Notification' in window)){
+    alert('Notifications are not supported in this browser.')
+    return
+  }
+  if(Notification.permission==='denied'){
+    alert('Notifications are blocked for this site. Enable them in your browser or device settings, then reload the app.')
+    return
+  }
+  notificationPrompt.classList.remove('hidden')
+}
+function closeNotificationPrompt(){
+  notificationPrompt?.classList.add('hidden')
+}
+async function enableMailNotifications(){
+  if(!('Notification' in window)){
+    closeNotificationPrompt()
+    refreshNotificationButton()
+    return false
+  }
+  const permission=Notification.permission==='granted'
+    ?'granted'
+    :await Notification.requestPermission()
+  const enabled=permission==='granted'
+  localStorage.setItem(NOTIFY_ENABLED_KEY,String(enabled))
+  if(enabled)localStorage.removeItem(NOTIFY_NEVER_ASK_KEY)
+  closeNotificationPrompt()
+  refreshNotificationButton()
+  if(enabled){
+    try{
+      const reg=await navigator.serviceWorker?.ready
+      await reg?.showNotification('Email notifications enabled',{
+        body:'You’ll be alerted when new mail arrives while the app is active.',
+        icon:'/assets/icon-192x192.png',
+        badge:'/assets/icon-192x192.png',
+        tag:'dfl-notifications-enabled',
+        data:{url:'/mail.html'}
+      })
+    }catch{}
+  }
+  return enabled
+}
+notificationTopbarBtn?.addEventListener('click',()=>{
+  if(notificationsEnabled()){
+    localStorage.setItem(NOTIFY_ENABLED_KEY,'false')
+    refreshNotificationButton()
+  }else{
+    openNotificationPrompt()
+  }
+})
+notificationPromptEnable?.addEventListener('click',enableMailNotifications)
+notificationPromptLater?.addEventListener('click',closeNotificationPrompt)
+notificationPromptNever?.addEventListener('click',()=>{
+  localStorage.setItem(NOTIFY_NEVER_ASK_KEY,'true')
+  closeNotificationPrompt()
+})
+notificationPrompt?.addEventListener('click',e=>{if(e.target===notificationPrompt)closeNotificationPrompt()})
+refreshNotificationButton()
+
 function playNotificationSound(){
   if(localStorage.getItem(NOTIFY_SOUND_KEY)==='false')return
   try{
@@ -421,8 +492,9 @@ function playNotificationSound(){
 }
 async function showMailNotification(mailbox,message,extraCount=0){
   if(!notificationsEnabled())return
-  const title=message?.sender||message?.from||'New email'
-  const body=[message?.subject||'(No subject)',extraCount>0?`+${extraCount} more new email${extraCount===1?'':'s'}`:null].filter(Boolean).join(' · ')
+  const sender=message?.from||message?.sender||'Unknown sender'
+  const title=`New email to ${mailbox}`
+  const body=[`From: ${sender}`,message?.subject||'(No subject)',extraCount>0?`+${extraCount} more new email${extraCount===1?'':'s'}`:null].filter(Boolean).join(' · ')
   const url=`/mail.html?mailbox=${encodeURIComponent(mailbox)}&folder=Inbox&uid=${encodeURIComponent(message?.uid||'')}`
   try{
     const reg=await navigator.serviceWorker?.ready
@@ -431,7 +503,7 @@ async function showMailNotification(mailbox,message,extraCount=0){
         body,
         icon:'/assets/icon-192x192.png',
         badge:'/assets/icon-192x192.png',
-        tag:`mail-${mailbox}`,
+        tag:`mail-${mailbox}-${message?.uid||Date.now()}`,
         renotify:true,
         data:{url}
       })
@@ -553,6 +625,17 @@ async function loadAdminVisibility(){
 
 async function loadAccounts(){
   const isAdmin=await loadAdminVisibility()
+  queueMicrotask(()=>{
+    refreshNotificationButton()
+    if(
+      'Notification' in window &&
+      !notificationsEnabled() &&
+      !notificationPromptSuppressed() &&
+      Notification.permission!=='denied'
+    ){
+      openNotificationPrompt()
+    }
+  })
   if(accountList)accountList.innerHTML='<div class="admin-loading">Loading mailboxes…</div>'
 
   try{
