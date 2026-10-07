@@ -1385,3 +1385,105 @@ input:focus,select:focus,textarea:focus{border-color:#67856b;box-shadow:0 0 0 3p
     display:none!important;
   }
 }
+
+
+/* Expanded email viewer */
+.email-fullscreen-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:140;
+  background:rgba(8,23,13,.72);
+  padding:18px;
+  display:grid;
+  place-items:center;
+}
+.email-fullscreen-backdrop.hidden{display:none!important}
+.email-fullscreen-card{
+  width:min(1180px,100%);
+  height:min(92dvh,100%);
+  background:#fff;
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:0 28px 80px rgba(0,0,0,.28);
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+}
+.email-fullscreen-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 18px;
+  border-bottom:1px solid var(--line);
+  background:#fff;
+}
+.email-fullscreen-head strong{font-size:15px;color:var(--green)}
+.email-fullscreen-head button{
+  width:42px;
+  height:42px;
+  border:1px solid #cfd8cf;
+  border-radius:10px;
+  background:#fff;
+  color:#27402c;
+  font-size:26px;
+  line-height:1;
+}
+.email-fullscreen-body{
+  overflow:auto;
+  padding:24px;
+  -webkit-overflow-scrolling:touch;
+}
+.email-fullscreen-body h2{
+  margin:0 0 10px;
+  color:var(--green);
+  font-size:28px;
+}
+.email-fullscreen-meta{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.5;
+  padding-bottom:18px;
+  margin-bottom:18px;
+  border-bottom:1px solid var(--line);
+}
+body.email-fullscreen-open{overflow:hidden}
+
+/* Tighten giant blank spacer blocks in HTML emails without flattening real content. */
+.reader-body .dfl-collapsed-spacer,
+.thread-message-body .dfl-collapsed-spacer,
+.email-fullscreen-body .dfl-collapsed-spacer{
+  height:8px!important;
+  min-height:0!important;
+  max-height:8px!important;
+  padding-top:0!important;
+  padding-bottom:0!important;
+  margin-top:0!important;
+  margin-bottom:0!important;
+  line-height:8px!important;
+  overflow:hidden!important;
+}
+.reader-body p:empty,
+.reader-body div:empty,
+.thread-message-body p:empty,
+.thread-message-body div:empty,
+.email-fullscreen-body p:empty,
+.email-fullscreen-body div:empty{
+  margin:0!important;
+  min-height:0!important;
+}
+
+@media(max-width:650px){
+  .email-fullscreen-backdrop{padding:0}
+  .email-fullscreen-card{
+    width:100%;
+    height:100dvh;
+    border-radius:0;
+  }
+  .email-fullscreen-head{
+    padding:max(10px,env(safe-area-inset-top)) 12px 10px;
+  }
+  .email-fullscreen-body{
+    padding:16px 12px calc(22px + env(safe-area-inset-bottom));
+  }
+  .email-fullscreen-body h2{font-size:22px}
+}
