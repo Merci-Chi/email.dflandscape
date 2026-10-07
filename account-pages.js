@@ -89,7 +89,32 @@ if(manageEmailsLink)manageEmailsLink.hidden=!canManageEmails
 if(location.pathname.endsWith('/manage-emails.html')&&!canManageEmails){location.replace('mail.html');throw new Error('No access')}
 
 const accountList=document.getElementById('accountList')
-if(accountList)accountList.innerHTML=`<a class="account-btn active" href="mail.html" style="text-decoration:none"><span class="account-copy"><strong>${esc(displayName)}</strong><span>${esc(email)}</span></span></a>`
+async function loadSidebarMailboxes(){
+  if(!accountList)return
+  accountList.innerHTML='<div class="admin-loading">Loading mailboxes…</div>'
+  try{
+    const {data:{session:s}}=await supabase.auth.getSession()
+    const res=await fetch(`${SUPABASE_URL}/functions/v1/dflandscape-mail`,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':`Bearer ${s.access_token}`,
+        'apikey':SUPABASE_PUBLISHABLE_KEY
+      },
+      body:JSON.stringify({action:'mailboxes'})
+    })
+    const result=await res.json()
+    if(!res.ok)throw new Error(result?.error||'Unable to load mailboxes.')
+    const mailboxes=(result?.data||[]).filter(v=>String(v).toLowerCase().endsWith('@dflandscape.com'))
+    accountList.innerHTML=mailboxes.length
+      ?mailboxes.map(m=>`<a class="account-btn" href="mail.html?mailbox=${encodeURIComponent(m)}" style="text-decoration:none"><span class="account-copy"><strong>${esc(String(m).split('@')[0])}</strong><span>${esc(m)}</span></span></a>`).join('')
+      :'<div class="no-access">No mailbox access.</div>'
+  }catch(error){
+    console.error('Unable to load sidebar mailboxes',error)
+    accountList.innerHTML='<div class="no-access">Unable to load mailboxes.</div>'
+  }
+}
+loadSidebarMailboxes()
 
 
 
@@ -333,15 +358,24 @@ function renderMailboxes(){
   const boxes=adminState.mailboxes||[]
   if(!boxes.length){host.innerHTML='<div class="admin-empty">No @dflandscape.com email accounts yet.</div>';return}
   host.innerHTML=boxes.map(box=>{
-    const access=(box.users||[]).filter(u=>String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
+    const access=box.users||[]
     return `<div class="admin-email-row"><div class="admin-email-copy"><strong>${esc(box.email)}</strong><span>${box.pending?'Requested email — not active yet':'Active mailbox'}</span></div><div class="admin-row-right"><span class="admin-badge ${box.pending?'pending':'active'}">${box.pending?'Pending':'Active'}</span>${access.length?access.map(u=>`<span class="access-chip">${esc(u.display_name||u.email)}</span>`).join(''):'<span class="access-chip">No assigned users</span>'}</div></div>`
   }).join('')
 }
 function renderUsers(){
   const host=document.getElementById('companyUserList')
-  const users=(adminState.users||[]).filter(u=>String(u.email||'').toLowerCase().endsWith('@dflandscape.com'))
-  if(!users.length){host.innerHTML='<div class="admin-empty">No @dflandscape.com users yet.</div>';return}
-  host.innerHTML=users.map(u=>`<div class="admin-user-row"><div class="admin-user-copy"><strong>${esc(u.display_name||u.email)}</strong><span>${esc(u.email)}</span></div><div class="admin-row-right">${(u.mailboxes||[]).length?(u.mailboxes||[]).map(m=>`<span class="access-chip">${esc(m)}</span>`).join(''):'<span class="access-chip">No mailbox access</span>'}<button class="manage-access-btn" data-manage-user="${esc(u.id)}" type="button">Manage access</button></div></div>`).join('')
+  const users=adminState.users||[]
+  if(!users.length){host.innerHTML='<div class="admin-empty">No users yet.</div>';return}
+  host.innerHTML=users.map(u=>{
+    const isAdmin=String(u.role||'').toLowerCase()==='admin'
+    const mailboxMarkup=(u.mailboxes||[]).length
+      ?(u.mailboxes||[]).map(m=>`<span class="access-chip">${esc(m)}</span>`).join('')
+      :'<span class="access-chip">No mailbox access</span>'
+    const action=isAdmin
+      ?'<span class="admin-badge active">Admin · all mailboxes</span>'
+      :`<button class="manage-access-btn" data-manage-user="${esc(u.id)}" type="button">Manage access</button>`
+    return `<div class="admin-user-row"><div class="admin-user-copy"><strong>${esc(u.display_name||u.email)}</strong><span>${esc(u.email)}</span></div><div class="admin-row-right">${mailboxMarkup}${action}</div></div>`
+  }).join('')
   host.querySelectorAll('[data-manage-user]').forEach(btn=>btn.onclick=()=>openAccessModal(btn.dataset.manageUser))
 }
 function mailboxToggleMarkup(box,checked=false){
