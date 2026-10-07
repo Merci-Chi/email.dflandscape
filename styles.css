@@ -1588,3 +1588,15 @@ body.email-fullscreen-open{overflow:hidden}
   height:42px;
   color:var(--green2);
 }
+
+
+/* All inboxes sits directly above mailbox accounts without inheriting folder-section spacing. */
+.sidebar .all-inboxes-list{
+  border-top:0;
+  margin-top:0;
+  padding-top:0;
+  margin-bottom:12px;
+}
+.sidebar .compose{
+  margin-bottom:12px;
+}
