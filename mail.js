@@ -283,7 +283,8 @@ async function callMailFunction(payload){
   if(!s?.access_token)throw new Error('Your session expired. Please sign in again.')
 
   const controller=new AbortController()
-  const timeoutMs=20000
+  const slowAction=['get','get_attachment','send','move','delete','archive'].includes(String(payload?.action||''))
+  const timeoutMs=slowAction?20000:10000
   const timer=setTimeout(()=>controller.abort(),timeoutMs)
 
   try{
@@ -590,14 +591,10 @@ async function showMailNotification(mailbox,message,extraCount=0){
 }
 async function refreshUnreadBadge(){
   if(!navigator.onLine||!accounts.length)return
-  let total=0
-  for(const account of accounts){
-    try{
-      const counts=await callMailFunction({action:'counts',mailbox_email:account.email})
-      total+=Number(counts?.Inbox||0)
-    }catch{}
-  }
-  await setAppUnreadBadge(total)
+  try{
+    const counts=await callMailFunction({action:'all_counts'})
+    await setAppUnreadBadge(Number(counts?.Inbox||0))
+  }catch{}
 }
 async function checkForNewMail(){
   if(!navigator.onLine||!accounts.length)return
@@ -806,9 +803,10 @@ function clearFullSearchCache(){
 async function loadFullMailboxHeaders(){
   if(!activeAccount)return []
 
+  const query=(searchInput?.value||'').trim()
   const key=activeFolder==='Inbox'&&allInboxesMode
-    ?`ALL|Inbox|${mailSort?.value||'newest'}`
-    :`${activeAccount.email}|${activeFolder}|${mailSort?.value||'newest'}`
+    ?`ALL|Inbox|${mailSort?.value||'newest'}|${query}`
+    :`${activeAccount.email}|${activeFolder}|${mailSort?.value||'newest'}|${query}`
 
   if(fullSearchKey===key&&fullSearchMessages.length)return fullSearchMessages
   if(fullSearchKey===key&&fullSearchPromise)return fullSearchPromise
@@ -816,65 +814,31 @@ async function loadFullMailboxHeaders(){
   fullSearchKey=key
   fullSearchPromise=(async()=>{
     if(activeFolder==='Inbox'&&allInboxesMode){
-      const results=await Promise.allSettled(accounts.map(async account=>{
-        const all=[]
-        let page=0
-        let hasMore=true
-
-        while(hasMore){
-          const result=await callMailFunction({
-            action:'list',
-            folder:'Inbox',
-            mailbox_email:account.email,
-            query:'',
-            page,
-            page_size:100,
-            sort:mailSort?.value||'newest'
-          })
-          const rows=Array.isArray(result)?result:(result?.messages||[])
-          all.push(...rows.map(message=>({...message,mailbox_email:account.email,sourceFolder:'Inbox'})))
-          hasMore=!Array.isArray(result)&&result?.hasMore===true
-          page+=1
-          if(Array.isArray(result)||!rows.length)break
-        }
-
-        return all
-      }))
-
-      const merged=[]
-      for(const result of results){
-        if(result.status==='fulfilled')merged.push(...result.value)
-      }
-
-      merged.sort((a,b)=>{
-        const delta=new Date(b.date||0)-new Date(a.date||0)
-        return (mailSort?.value||'newest')==='oldest'?-delta:delta
-      })
-      return merged
-    }
-
-    const all=[]
-    let page=0
-    let hasMore=true
-
-    while(hasMore){
       const result=await callMailFunction({
-        action:'list',
-        folder:activeFolder,
-        mailbox_email:activeAccount.email,
-        query:'',
-        page,
+        action:'all_inboxes',
+        query,
+        page:0,
         page_size:100,
         sort:mailSort?.value||'newest'
       })
-      const rows=Array.isArray(result)?result:(result?.messages||[])
-      all.push(...rows.map(message=>({...message,mailbox_email:activeAccount.email})))
-      hasMore=!Array.isArray(result)&&result?.hasMore===true
-      page+=1
-      if(Array.isArray(result)||!rows.length)break
+      return Array.isArray(result)?result:(result?.messages||[])
     }
 
-    return all
+    const result=await callMailFunction({
+      action:'list',
+      folder:activeFolder,
+      mailbox_email:activeAccount.email,
+      query,
+      page:0,
+      page_size:100,
+      sort:mailSort?.value||'newest'
+    })
+
+    const rows=Array.isArray(result)?result:(result?.messages||[])
+    return rows.map(message=>({
+      ...message,
+      mailbox_email:message.mailbox_email||activeAccount.email
+    }))
   })()
 
   try{
@@ -963,42 +927,15 @@ async function loadMessages({reset=true,force=false}={}){
     let pageMessages=[]
 
     if(activeFolder==='Inbox'&&allInboxesMode){
-      const results=await Promise.allSettled(
-        accounts.map(async account=>{
-          const result=await callMailFunction({
-            action:'list',
-            folder:'Inbox',
-            mailbox_email:account.email,
-            query:'',
-            page:0,
-            page_size:mailPageSize,
-            sort:mailSort?.value||'newest'
-          })
-
-          const rows=Array.isArray(result)?result:(result?.messages||[])
-          return rows.map(message=>({
-            ...message,
-            mailbox_email:account.email,
-            sourceFolder:'Inbox'
-          }))
-        })
-      )
-
-      const failures=[]
-      for(const result of results){
-        if(result.status==='fulfilled')pageMessages.push(...result.value)
-        else failures.push(result.reason)
-      }
-
-      if(!pageMessages.length&&failures.length){
-        throw failures[0]
-      }
-
-      pageMessages.sort((a,b)=>{
-        const delta=new Date(b.date||0)-new Date(a.date||0)
-        return (mailSort?.value||'newest')==='oldest'?-delta:delta
+      const result=await callMailFunction({
+        action:'all_inboxes',
+        query:'',
+        page:0,
+        page_size:mailPageSize,
+        sort:mailSort?.value||'newest'
       })
-      pageMessages=pageMessages.slice(0,mailPageSize)
+      pageMessages=Array.isArray(result)?result:(result?.messages||[])
+      mailHasMore=!Array.isArray(result)&&result?.hasMore===true
     }else{
       const result=await callMailFunction({
         action:'list',
@@ -1011,6 +948,7 @@ async function loadMessages({reset=true,force=false}={}){
       })
 
       const rows=Array.isArray(result)?result:(result?.messages||[])
+      mailHasMore=!Array.isArray(result)&&result?.hasMore===true
       pageMessages=rows.map(message=>({
         ...message,
         mailbox_email:activeAccount.email
@@ -1018,7 +956,6 @@ async function loadMessages({reset=true,force=false}={}){
     }
 
     currentMessages=pageMessages
-    mailHasMore=false
     mailPage=1
     await loadSnoozedState()
     renderMessages()
@@ -1205,12 +1142,8 @@ async function loadUnreadCount(){
     let count=0
 
     if(activeFolder==='Inbox'&&allInboxesMode){
-      const results=await Promise.allSettled(
-        accounts.map(account=>callMailFunction({action:'counts',mailbox_email:account.email}))
-      )
-      count=results.reduce((sum,result)=>
-        sum+(result.status==='fulfilled'?Number(result.value?.Inbox||0):0),0
-      )
+      const counts=await callMailFunction({action:'all_counts'})
+      count=Number(counts?.Inbox||0)
     }else{
       const counts=await callMailFunction({action:'counts',mailbox_email:activeAccount.email})
       count=Number(counts?.Inbox||0)
