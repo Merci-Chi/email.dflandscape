@@ -139,13 +139,14 @@ function snoozeDateFromChoice(choice){
   return null
 }
 async function snoozeActiveMessage(choice){
-  if(!activeMessage||!activeAccount)return
+  if(!activeMessage)return
   const until=snoozeDateFromChoice(choice)
   if(!until)return
-  const folder=activeMessage.sourceFolder||messageFolder(activeMessage.uid)||activeFolder
+  const mailbox=activeMessage.mailbox_email||messageMailbox(activeMessageId)
+  const folder=activeMessage.sourceFolder||messageFolder(activeMessageId)||activeFolder
   const payload={
     user_id:session.user.id,
-    mailbox_email:activeAccount.email,
+    mailbox_email:mailbox,
     folder,
     uid:String(activeMessage.uid),
     subject:activeMessage.subject||'',
@@ -154,8 +155,8 @@ async function snoozeActiveMessage(choice){
   }
   const {error}=await supabase.from('dflandscape_snoozed_mail').upsert(payload,{onConflict:'user_id,mailbox_email,folder,uid'})
   if(error){alert(error.message||'Unable to snooze email.');return}
-  snoozedMessageKeys.add(snoozedKey(activeAccount.email,folder,activeMessage.uid))
-  currentMessages=currentMessages.filter(m=>String(m.uid)!==String(activeMessage.uid))
+  snoozedMessageKeys.add(snoozedKey(mailbox,folder,activeMessage.uid))
+  currentMessages=currentMessages.filter(m=>messageKey(m)!==String(activeMessageId))
   closeMobileReader()
   renderReader()
   renderMessages()
@@ -632,12 +633,54 @@ function clearFullSearchCache(){
 }
 async function loadFullMailboxHeaders(){
   if(!activeAccount)return []
-  const key=`${activeAccount.email}|${activeFolder}|${mailSort?.value||'newest'}`
+
+  const key=activeFolder==='Inbox'
+    ?`ALL|Inbox|${mailSort?.value||'newest'}`
+    :`${activeAccount.email}|${activeFolder}|${mailSort?.value||'newest'}`
+
   if(fullSearchKey===key&&fullSearchMessages.length)return fullSearchMessages
   if(fullSearchKey===key&&fullSearchPromise)return fullSearchPromise
 
   fullSearchKey=key
   fullSearchPromise=(async()=>{
+    if(activeFolder==='Inbox'){
+      const results=await Promise.allSettled(accounts.map(async account=>{
+        const all=[]
+        let page=0
+        let hasMore=true
+
+        while(hasMore){
+          const result=await callMailFunction({
+            action:'list',
+            folder:'Inbox',
+            mailbox_email:account.email,
+            query:'',
+            page,
+            page_size:100,
+            sort:mailSort?.value||'newest'
+          })
+          const rows=Array.isArray(result)?result:(result?.messages||[])
+          all.push(...rows.map(message=>({...message,mailbox_email:account.email,sourceFolder:'Inbox'})))
+          hasMore=!Array.isArray(result)&&result?.hasMore===true
+          page+=1
+          if(Array.isArray(result)||!rows.length)break
+        }
+
+        return all
+      }))
+
+      const merged=[]
+      for(const result of results){
+        if(result.status==='fulfilled')merged.push(...result.value)
+      }
+
+      merged.sort((a,b)=>{
+        const delta=new Date(b.date||0)-new Date(a.date||0)
+        return (mailSort?.value||'newest')==='oldest'?-delta:delta
+      })
+      return merged
+    }
+
     const all=[]
     let page=0
     let hasMore=true
@@ -646,25 +689,28 @@ async function loadFullMailboxHeaders(){
       const result=await callMailFunction({
         action:'list',
         folder:activeFolder,
-        mailbox_email:row.mailbox_email||mailbox,
+        mailbox_email:activeAccount.email,
         query:'',
         page,
         page_size:100,
         sort:mailSort?.value||'newest'
       })
       const rows=Array.isArray(result)?result:(result?.messages||[])
-      all.push(...rows)
+      all.push(...rows.map(message=>({...message,mailbox_email:activeAccount.email})))
       hasMore=!Array.isArray(result)&&result?.hasMore===true
       page+=1
       if(Array.isArray(result)||!rows.length)break
     }
 
-    fullSearchMessages=all
     return all
   })()
 
-  try{return await fullSearchPromise}
-  finally{fullSearchPromise=null}
+  try{
+    fullSearchMessages=await fullSearchPromise
+    return fullSearchMessages
+  }finally{
+    fullSearchPromise=null
+  }
 }
 
 async function loadMessages({reset=true,force=false}={}){
@@ -844,7 +890,7 @@ function filteredMessages(){
   return currentMessages.filter(m=>{
     if(!messageMatchesSearch(m))return false
     if(activeFolder==='Starred'&&m.flagged!==true)return false
-    if(activeAccount&&snoozedMessageKeys.has(snoozedKey(activeAccount.email,m.sourceFolder||activeFolder,m.uid)))return false
+    if(snoozedMessageKeys.has(snoozedKey(m.mailbox_email||activeAccount?.email||'',m.sourceFolder||activeFolder,m.uid)))return false
     if(filter==='unread'&&m.seen!==false)return false
     if(filter==='starred'&&m.flagged!==true)return false
     if(filter==='attachments'&&m.hasAttachments!==true)return false
@@ -1093,7 +1139,12 @@ async function runBulkAction(action){
   setBulkBusy(true)
   try{
     for(const uid of ids){
-      await callMailFunction({action,folder:messageFolder(uid),uid,mailbox_email:activeAccount.email})
+      await callMailFunction({
+        action,
+        folder:messageFolder(uid),
+        uid:messageUid(uid),
+        mailbox_email:messageMailbox(uid)
+      })
       const row=findMessage(uid)
       if(action==='mark_read'&&row)row.seen=true
       if(action==='mark_unread'&&row)row.seen=false
@@ -1182,14 +1233,16 @@ async function ensureAttachmentData(index){
   if(current.dataUrl&&current.base64)return current
 
   const folder=activeMessage?.sourceFolder||messageFolder(activeMessageId)||activeFolder
+  const mailbox=activeMessage?.mailbox_email||messageMailbox(activeMessageId)
+  const uid=activeMessage?.uid||messageUid(activeMessageId)
 
   try{
     const loaded=await callMailFunction({
       action:'get_attachment',
       folder,
-      uid:String(activeMessageId),
+      uid:String(uid),
       attachment_index:i,
-      mailbox_email:activeAccount.email
+      mailbox_email:mailbox
     })
     activeMessage.attachments[i]={...current,...loaded}
     return activeMessage.attachments[i]
@@ -1197,8 +1250,8 @@ async function ensureAttachmentData(index){
     const full=await callMailFunction({
       action:'get',
       folder,
-      uid:String(activeMessageId),
-      mailbox_email:activeAccount.email
+      uid:String(uid),
+      mailbox_email:mailbox
     })
     const loaded=full?.attachments?.[i]
     if(!loaded)throw new Error('Attachment not found.')
@@ -1285,15 +1338,16 @@ async function loadThreadConversation(message){
     if(String(row.uid)===String(message.uid))return message
     const folder=row.sourceFolder||activeFolder
     const cached=getCachedMessage(row.mailbox_email||mailbox,folder,row.uid)
-    if(cached)return {...cached,sourceFolder:folder}
+    if(cached)return {...cached,sourceFolder:folder,mailbox_email:row.mailbox_email||mailbox}
     try{
       const item=await callMailFunction({
         action:'get',
         folder,
         uid:String(row.uid),
-        mailbox_email:activeAccount.email
+        mailbox_email:row.mailbox_email||mailbox
       })
       item.sourceFolder=folder
+      item.mailbox_email=row.mailbox_email||mailbox
       saveMessageCache(item)
       return item
     }catch{return null}
@@ -1314,7 +1368,7 @@ function renderThreadConversation(messages,active){
           <strong>${esc(item.sender||item.from||'Unknown sender')}</strong>
           <span>${esc(formatFullDate(item.date))}</span>
         </div>
-        <div class="thread-message-meta">To: ${esc(item.to||activeAccount.email)}</div>
+        <div class="thread-message-meta">To: ${esc(item.to||item.mailbox_email||activeAccount.email)}</div>
         <div class="thread-message-body">${item.html||esc(item.body||'')}</div>
       </article>`).join('')}
   </section>`
@@ -1548,6 +1602,8 @@ function cleanAddressList(value=''){
   return String(value).split(',').map(v=>v.trim()).filter(Boolean)
 }
 function openReplyComposer(message){
+  const mailbox=message.mailbox_email||activeAccount?.email||''
+  if(mailbox&&composeFrom)activeAccount=accounts.find(a=>a.email===mailbox)||activeAccount
   setComposeValues({
     to:message.replyTo||message.from||'',
     subject:replySubject(message.subject),
@@ -1555,7 +1611,9 @@ function openReplyComposer(message){
   })
 }
 function openReplyAllComposer(message){
-  const own=(activeAccount?.email||'').toLowerCase()
+  const mailbox=message.mailbox_email||activeAccount?.email||''
+  if(mailbox&&composeFrom)activeAccount=accounts.find(a=>a.email===mailbox)||activeAccount
+  const own=mailbox.toLowerCase()
   const sender=message.replyTo||message.from||''
   const ccCandidates=[...cleanAddressList(message.to),...cleanAddressList(message.cc)]
     .filter(v=>v&&v.toLowerCase()!==own&&v.toLowerCase()!==sender.toLowerCase())
@@ -1567,6 +1625,8 @@ function openReplyAllComposer(message){
   })
 }
 async function openForwardComposer(message){
+  const mailbox=message.mailbox_email||activeAccount?.email||''
+  if(mailbox&&composeFrom)activeAccount=accounts.find(a=>a.email===mailbox)||activeAccount
   const original=String(message.body||'').trim()
   const forwarded=[
     '',
@@ -1575,7 +1635,7 @@ async function openForwardComposer(message){
     `From: ${message.from||message.sender||''}`,
     `Date: ${formatFullDate(message.date)}`,
     `Subject: ${message.subject||'(No subject)'}`,
-    `To: ${message.to||activeAccount?.email||''}`,
+    `To: ${message.to||message.mailbox_email||activeAccount?.email||''}`,
     '',
     original
   ].join('\n')
@@ -1603,12 +1663,12 @@ async function setMessageState(action,keyOrUid=activeMessageId){
   })
 }
 async function toggleMessageFlag(uid){
-  const row=currentMessages.find(x=>String(x.uid)===String(uid))
+  const row=findMessage(uid)
   const next=!(row?.flagged===true)
   try{
     await setMessageState(next?'star':'unstar',uid)
     if(row)row.flagged=next
-    if(activeMessage&&String(activeMessage.uid)===String(uid))activeMessage.flagged=next
+    if(activeMessage&&String(activeMessageId)===String(uid))activeMessage.flagged=next
     renderMessages()
   }catch(error){alert(error.message||'Unable to update star.')}
 }
@@ -1704,7 +1764,9 @@ searchInput?.addEventListener('input',()=>{
     return
   }
 
-  const key=`${activeAccount?.email||''}|${activeFolder}|${mailSort?.value||'newest'}`
+  const key=activeFolder==='Inbox'
+    ?`ALL|Inbox|${mailSort?.value||'newest'}`
+    :`${activeAccount?.email||''}|${activeFolder}|${mailSort?.value||'newest'}`
   if(fullSearchKey===key&&fullSearchMessages.length){
     currentMessages=fullSearchMessages
     renderMessages()
@@ -1779,8 +1841,9 @@ document.getElementById('bulkDeleteBtn')?.addEventListener('click',()=>runBulkAc
 async function refreshMailboxKeepingSelection(){
   const selectedUid=activeMessageId?String(activeMessageId):''
   const selectedFolder=activeMessage?.sourceFolder||activeFolder
-  await loadMessages({reset:true})
-  if(selectedUid)await loadMessage(selectedUid,{sourceFolderOverride:selectedFolder})
+  const selectedMailbox=activeMessage?.mailbox_email||messageMailbox(activeMessageId)
+  await loadMessages({reset:true,force:true})
+  if(selectedUid)await loadMessage(selectedUid,{sourceFolderOverride:selectedFolder,mailboxOverride:selectedMailbox})
 }
 
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{
