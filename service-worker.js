@@ -1,12 +1,12 @@
-const CACHE_NAME = 'dfl-email-notifications-20261006-1'
+const CACHE_NAME = 'dfl-email-icons-20261008-1'
 const APP_SHELL = [
   '/styles.css',
   '/app.js',
   '/mail.js',
   '/account-pages.js',
   '/manifest.json',
-  '/assets/icon-192x192.png',
-  '/assets/icon-512x512.png'
+  '/favicons/android-chrome-192x192.png',
+  '/favicons/android-chrome-512x512.png'
 ]
 
 self.addEventListener('install', event => {
@@ -125,8 +125,8 @@ self.addEventListener('message', event => {
         data.title || 'New email',
         {
           body: data.body || '',
-          icon: '/assets/icon-192x192.png',
-          badge: '/assets/icon-192x192.png',
+          icon: '/favicons/android-chrome-192x192.png',
+          badge: '/favicons/android-chrome-192x192.png',
           tag: data.tag || 'dfl-mail',
           renotify: true,
           data: {
@@ -152,8 +152,8 @@ self.addEventListener('push', event => {
       data.title || 'New email',
       {
         body: data.body || '',
-        icon: '/assets/icon-192x192.png',
-        badge: '/assets/icon-192x192.png',
+        icon: '/favicons/android-chrome-192x192.png',
+        badge: '/favicons/android-chrome-192x192.png',
         tag: data.tag || 'dfl-mail-push',
         renotify: true,
         data: {
