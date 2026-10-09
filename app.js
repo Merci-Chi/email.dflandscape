@@ -228,6 +228,25 @@ document.getElementById('backFromMagicCodeBtn').addEventListener('click', () => 
   showOnly(loginForm)
 })
 
+const savedLoginEmailKey = 'dfl-company-email-saved-login';
+const saveEmailCheckbox = document.getElementById('saveEmail');
+const loginEmailInput = document.getElementById('email');
+try {
+  const savedEmail = localStorage.getItem(savedLoginEmailKey);
+  if (savedEmail) { loginEmailInput.value = savedEmail; saveEmailCheckbox.checked = true; }
+} catch (_) {}
+saveEmailCheckbox.addEventListener('change', () => {
+  try {
+    if (saveEmailCheckbox.checked && loginEmailInput.value.trim()) localStorage.setItem(savedLoginEmailKey, loginEmailInput.value.trim());
+    else localStorage.removeItem(savedLoginEmailKey);
+  } catch (_) {}
+});
+loginEmailInput.addEventListener('input', () => {
+  try {
+    if (saveEmailCheckbox.checked) localStorage.setItem(savedLoginEmailKey, loginEmailInput.value.trim());
+  } catch (_) {}
+});
+
 document.getElementById('forgotPasswordBtn').addEventListener('click', () => {
   const emailField = document.getElementById('email')
   const email = emailField.value.trim().toLowerCase()
