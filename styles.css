@@ -1600,3 +1600,11 @@ body.email-fullscreen-open{overflow:hidden}
 .sidebar .compose{
   margin-bottom:12px;
 }
+
+
+/* Matching device-email checkbox: center the check in both axes */
+.save-email-row{display:flex!important;align-items:center!important;justify-content:flex-start;gap:10px;min-height:36px;cursor:pointer;text-align:left;position:relative;font-size:12px;font-weight:750;user-select:none}
+.save-email-row input[type="checkbox"]{position:absolute!important;opacity:0!important;width:20px!important;height:20px!important;margin:0!important;pointer-events:none}
+.save-email-check{display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 20px!important;width:20px!important;height:20px!important;line-height:1!important;border:1.5px solid #93a597;border-radius:5px;background:#fff;color:transparent;font-size:13px;font-weight:900;box-sizing:border-box}
+.save-email-row input:checked+.save-email-check{background:#173622;color:#fff;border-color:#173622}
+.save-email-row input:focus-visible+.save-email-check{outline:3px solid #9db6a3;outline-offset:2px}
