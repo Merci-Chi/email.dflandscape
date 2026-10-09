@@ -228,11 +228,31 @@ document.getElementById('backFromMagicCodeBtn').addEventListener('click', () => 
   showOnly(loginForm)
 })
 
-document.getElementById('forgotPasswordBtn').addEventListener('click', () => {
-  document.getElementById('forgotEmail').value = document.getElementById('email').value
-  forgotMessage.textContent = ''
-  setHeading('Forgot password', 'We will email you a password-reset code and a link to the reset page.')
-  showOnly(forgotForm)
+document.getElementById('forgotPasswordBtn').addEventListener('click', async () => {
+  const email = document.getElementById('email').value.trim().toLowerCase()
+  if (!email || !document.getElementById('email').checkValidity()) {
+    document.getElementById('forgotEmail').value = email
+    forgotMessage.textContent = 'Enter your email address to receive a reset code.'
+    setHeading('Forgot password', 'Enter your account email to receive a reset code.')
+    showOnly(forgotForm)
+    return
+  }
+  const button = document.getElementById('forgotPasswordBtn')
+  button.disabled = true
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://email.dflandscape.com/reset-password.html'
+    })
+    if (error) throw error
+    window.location.assign('https://email.dflandscape.com/reset-password.html?sent=1&email=' + encodeURIComponent(email))
+  } catch (error) {
+    document.getElementById('forgotEmail').value = email
+    forgotMessage.textContent = error.message || 'Unable to send reset code.'
+    setHeading('Forgot password', 'Please try sending your reset code again.')
+    showOnly(forgotForm)
+  } finally {
+    button.disabled = false
+  }
 })
 
 document.getElementById('backToLoginBtn').addEventListener('click', () => {
