@@ -255,10 +255,10 @@ forgotForm.addEventListener('submit', async (event) => {
     })
     if (error) throw error
     forgotMessage.classList.add('success')
-    forgotMessage.textContent = 'Reset link sent. Check your inbox.'
+    forgotMessage.textContent = 'Reset code sent. Check your inbox and enter the code on the Steady Hands reset page.'
   } catch (error) {
     forgotMessage.classList.remove('success')
-    forgotMessage.textContent = error.message || 'Unable to send reset link.'
+    forgotMessage.textContent = error.message || 'Unable to send reset code.'
   } finally {
     submitButton.disabled = false
     submitButton.textContent = 'Send reset link'
