@@ -211,7 +211,7 @@ forgotForm.addEventListener('submit', async (event) => {
 
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://email.dflandscape.com'
+      redirectTo: 'https://steadyhandsop.com/reset-password.html'
     })
     if (error) throw error
     forgotMessage.classList.add('success')
