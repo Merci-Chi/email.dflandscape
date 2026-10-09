@@ -255,7 +255,7 @@ forgotForm.addEventListener('submit', async (event) => {
     })
     if (error) throw error
     forgotMessage.classList.add('success')
-    forgotMessage.textContent = 'Reset code sent. Open the reset page linked in your email, then enter the code.'
+    window.location.assign('https://email.dflandscape.com/reset-password.html?sent=1&email=' + encodeURIComponent(email))
   } catch (error) {
     forgotMessage.classList.remove('success')
     forgotMessage.textContent = error.message || 'Unable to send reset code.'
