@@ -38,6 +38,11 @@ const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_e2h4t8AvCobzftt36UrDbw_NJGq8qlJ
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
 
 const loginForm = document.getElementById('loginForm')
+const magicCodeForm = document.getElementById('magicCodeForm')
+const magicCodeEmail = document.getElementById('magicCodeEmail')
+const magicCodeInput = document.getElementById('magicCode')
+const magicCodeMessage = document.getElementById('magicCodeMessage')
+const verifyMagicCodeBtn = document.getElementById('verifyMagicCodeBtn')
 const forgotForm = document.getElementById('forgotForm')
 const firstLoginForm = document.getElementById('firstLoginForm')
 const resetForm = document.getElementById('resetForm')
@@ -171,14 +176,15 @@ magicLinkBtn?.addEventListener('click', async () => {
   try {
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: 'https://email.dflandscape.com'
-      }
+      options: { shouldCreateUser: false }
     })
     if (error) throw error
-    loginMessage.classList.add('success')
-    loginMessage.textContent = 'Secure sign-in link sent. Open it from your email to continue.'
+    magicCodeEmail.value = email
+    magicCodeInput.value = ''
+    magicCodeMessage.classList.add('success')
+    magicCodeMessage.textContent = 'Enter the one-time code from the email we just sent.'
+    setHeading('Verify sign-in code', 'Enter the code from your company email to continue.')
+    showOnly(magicCodeForm)
   } catch (error) {
     loginMessage.classList.remove('success')
     loginMessage.textContent = error.message || 'Unable to send sign-in link.'
@@ -186,6 +192,40 @@ magicLinkBtn?.addEventListener('click', async () => {
     magicLinkBtn.disabled = false
     magicLinkBtn.textContent = 'Email me a secure sign-in link'
   }
+})
+
+magicCodeForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const email = magicCodeEmail.value.trim().toLowerCase()
+  const token = magicCodeInput.value.trim().replace(/\\s/g, '')
+  magicCodeMessage.classList.remove('success')
+  magicCodeMessage.textContent = ''
+
+  if (!email || !token) {
+    magicCodeMessage.textContent = 'Enter your company email and the one-time code.'
+    return
+  }
+
+  verifyMagicCodeBtn.disabled = true
+  verifyMagicCodeBtn.textContent = 'Verifying...'
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+    if (error) throw error
+    if (!data?.user) throw new Error('The code was not accepted. Use the code from the newest email.')
+    await routeSignedInUser(data.user)
+  } catch (error) {
+    magicCodeMessage.textContent = error.message || 'Unable to verify this code.'
+  } finally {
+    verifyMagicCodeBtn.disabled = false
+    verifyMagicCodeBtn.textContent = 'Verify code and sign in'
+  }
+})
+
+document.getElementById('backFromMagicCodeBtn').addEventListener('click', () => {
+  magicCodeInput.value = ''
+  magicCodeMessage.textContent = ''
+  setHeading('Email', 'Sign in to your company mailbox.')
+  showOnly(loginForm)
 })
 
 document.getElementById('forgotPasswordBtn').addEventListener('click', () => {
