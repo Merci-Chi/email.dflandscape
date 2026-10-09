@@ -231,7 +231,7 @@ document.getElementById('backFromMagicCodeBtn').addEventListener('click', () => 
 document.getElementById('forgotPasswordBtn').addEventListener('click', () => {
   document.getElementById('forgotEmail').value = document.getElementById('email').value
   forgotMessage.textContent = ''
-  setHeading('Forgot password', 'We will email you a secure password reset link.')
+  setHeading('Forgot password', 'We will email you a password-reset code and a link to the reset page.')
   showOnly(forgotForm)
 })
 
@@ -255,7 +255,7 @@ forgotForm.addEventListener('submit', async (event) => {
     })
     if (error) throw error
     forgotMessage.classList.add('success')
-    forgotMessage.textContent = 'Reset code sent. Check your inbox and enter the code on the Steady Hands reset page.'
+    forgotMessage.textContent = 'Reset code sent. Open the reset page linked in your email, then enter the code.'
   } catch (error) {
     forgotMessage.classList.remove('success')
     forgotMessage.textContent = error.message || 'Unable to send reset code.'
