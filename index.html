@@ -60,6 +60,20 @@
           <p id="loginMessage" class="form-message" aria-live="polite"></p>
         </form>
 
+        <form id="magicCodeForm" class="login-form hidden">
+          <label>
+            Email
+            <input id="magicCodeEmail" type="email" autocomplete="email" placeholder="name@dflandscape.com" required>
+          </label>
+          <label>
+            One-time sign-in code
+            <input id="magicCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Code from your email" required>
+          </label>
+          <button class="primary-auth-btn" id="verifyMagicCodeBtn" type="submit">Verify code and sign in</button>
+          <button class="text-button" id="backFromMagicCodeBtn" type="button">Back to sign in</button>
+          <p id="magicCodeMessage" class="form-message" aria-live="polite"></p>
+        </form>
+
         <form id="forgotForm" class="login-form hidden">
           <label>
             Email
@@ -128,7 +142,7 @@
     </section>
   </main>
 
-  <script type="module" src="app.js?v=auth-6"></script>
+  <script type="module" src="app.js?v=auth-7"></script>
   <script src="update-manager.js?v=1" defer></script>
 </body>
 </html>
