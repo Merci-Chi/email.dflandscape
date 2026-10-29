@@ -336,6 +336,154 @@ async function loadUserSignatureRecords(){
 }
 await loadUserSignatureRecords()
 
+
+/* Batch 2 — user-based visual signature editor. Does not change legacy email sending yet. */
+const userSigSelect=document.getElementById('userSignatureSelect')
+const userSigEditor=document.getElementById('userSignatureEditor')
+if(userSigEditor&&userSigSelect){
+ let sigRows=Array.isArray(window.dflUserSignatures)?window.dflUserSignatures:[]
+ let selectedSigId=''
+ let sigSavedHtml=''
+ const sigStatus=document.getElementById('userSignatureStatus')
+ const sigName=document.getElementById('userSignatureName')
+ const sigNew=document.getElementById('signatureDefaultNew')
+ const sigReply=document.getElementById('signatureDefaultReply')
+ const sigPreview=document.getElementById('userSignaturePreview')
+ const sigAllowedTags=new Set(['DIV','P','BR','SPAN','B','STRONG','I','EM','U','S','A','IMG','TABLE','TBODY','TR','TD','TH','UL','OL','LI','FONT','BLOCKQUOTE'])
+ const sigStyles=new Set(['color','background-color','font-weight','font-style','text-decoration','font-size','font-family','text-align','vertical-align','width','height','max-width','border','border-collapse','padding','padding-left','padding-right'])
+ function sigUrl(value,kind='link'){
+   try{const u=new URL(value);return kind==='image'?(u.protocol==='https:'?u.href:''):((u.protocol==='https:'||u.protocol==='http:'||u.protocol==='mailto:'||u.protocol==='tel:')?u.href:'')}catch{return ''}
+ }
+ function sigSanitize(markup){
+   const source=new DOMParser().parseFromString('<div>'+String(markup||'')+'</div>','text/html').body.firstElementChild
+   const out=document.createElement('div')
+   function clean(parent,node){
+     if(node.nodeType===Node.TEXT_NODE){parent.appendChild(document.createTextNode(node.textContent||''));return}
+     if(node.nodeType!==Node.ELEMENT_NODE)return
+     const tag=node.tagName.toUpperCase()
+     if(['SCRIPT','STYLE','IFRAME','SVG','FORM','INPUT','BUTTON','OBJECT','EMBED','VIDEO','AUDIO'].includes(tag))return
+     const allowed=sigAllowedTags.has(tag)
+     const el=allowed?document.createElement(tag.toLowerCase()):parent
+     if(allowed){
+       if(tag==='A'){const href=sigUrl(node.getAttribute('href')||'');if(href){el.setAttribute('href',href);el.setAttribute('target','_blank');el.setAttribute('rel','noopener noreferrer')}}
+       if(tag==='IMG'){
+         const src=sigUrl(node.getAttribute('src')||'','image')
+         if(!src)return
+         el.setAttribute('src',src);el.setAttribute('alt',(node.getAttribute('alt')||'Signature image').slice(0,120))
+         const width=Math.max(20,Math.min(600,Number(node.getAttribute('width'))||200))
+         el.setAttribute('width',String(width))
+       }
+       const style=(node.getAttribute('style')||'').split(';')
+       for(const entry of style){
+         const idx=entry.indexOf(':');if(idx<0)continue
+         const key=entry.slice(0,idx).trim().toLowerCase(), val=entry.slice(idx+1).trim()
+         if(sigStyles.has(key)&&val.length<100&&!/url\s*\(|expression\s*\(|[<>]/i.test(val))el.style.setProperty(key,val)
+       }
+       parent.appendChild(el)
+     }
+     for(const child of [...node.childNodes])clean(el,child)
+   }
+   for(const node of [...source.childNodes])clean(out,node)
+   return out.innerHTML.slice(0,100000)
+ }
+ function sigText(html){
+   const el=document.createElement('div');el.innerHTML=sigSanitize(html)
+   return (el.innerText||el.textContent||'').slice(0,15000)
+ }
+ function sigRenderPreview(){sigPreview.innerHTML=sigSanitize(userSigEditor.innerHTML)}
+ function sigSetStatus(value,error=false){sigStatus.textContent=value;sigStatus.style.color=error?'#ad3030':''}
+ function sigFillList(){
+   userSigSelect.innerHTML='<option value="">New signature</option>'+sigRows.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.name)+'</option>').join('')
+   userSigSelect.value=selectedSigId
+ }
+ function sigLoad(id){
+   selectedSigId=id||''
+   const row=sigRows.find(x=>x.id===id)
+   sigName.value=row?.name||''
+   sigNew.checked=row?.is_default_new===true
+   sigReply.checked=row?.is_default_reply===true
+   userSigEditor.innerHTML=sigSanitize(row?.content_html||((row?.content_text||'').split('\n').map(x=>esc(x)).join('<br>')))
+   sigSavedHtml=userSigEditor.innerHTML
+   sigFillList();sigRenderPreview();sigSetStatus('')
+ }
+ async function sigRefresh(){
+   const {data,error}=await supabase.from('dflandscape_user_signatures').select('id,name,content_html,content_text,design,is_default_new,is_default_reply,created_at').eq('user_id',user.id).order('created_at',{ascending:true})
+   if(error)throw error
+   sigRows=data||[];window.dflUserSignatures=sigRows
+   sigLoad(sigRows.some(x=>x.id===selectedSigId)?selectedSigId:(sigRows[0]?.id||''))
+ }
+ userSigSelect.addEventListener('change',()=>sigLoad(userSigSelect.value))
+ document.getElementById('signatureNew').addEventListener('click',()=>sigLoad(''))
+ document.getElementById('signatureDuplicate').addEventListener('click',()=>{
+   selectedSigId='';sigName.value=(sigName.value||'Signature')+' copy';sigNew.checked=false;sigReply.checked=false;sigFillList();sigSetStatus('Copy ready to save')
+ })
+ document.getElementById('signatureDelete').addEventListener('click',async()=>{
+   if(!selectedSigId)return sigSetStatus('Select a saved signature to delete.',true)
+   if(!confirm('Delete this signature?'))return
+   const {error}=await supabase.from('dflandscape_user_signatures').delete().eq('id',selectedSigId).eq('user_id',user.id)
+   if(error)return sigSetStatus(error.message,true)
+   selectedSigId='';await sigRefresh();sigSetStatus('Signature deleted.')
+ })
+ document.querySelectorAll('[data-sig-cmd]').forEach(btn=>btn.addEventListener('click',()=>{
+   userSigEditor.focus();document.execCommand(btn.dataset.sigCmd,false,null);sigRenderPreview()
+ }))
+ document.getElementById('sigTextColor').addEventListener('input',e=>{userSigEditor.focus();document.execCommand('foreColor',false,e.target.value);sigRenderPreview()})
+ document.getElementById('sigFontSize').addEventListener('change',e=>{userSigEditor.focus();document.execCommand('fontSize',false,e.target.value);sigRenderPreview()})
+ document.getElementById('signatureAddLink').addEventListener('click',()=>{
+   const href=sigUrl(prompt('Enter a link (https://...)')||'')
+   if(!href)return
+   userSigEditor.focus()
+   const selection=window.getSelection()
+   if(selection?.toString())document.execCommand('createLink',false,href)
+   else document.execCommand('insertHTML',false,'<a href="'+esc(href)+'">'+esc(href)+'</a>')
+   sigRenderPreview()
+ })
+ document.getElementById('signatureAddImage').addEventListener('click',()=>{
+   const src=sigUrl(prompt('Enter a public HTTPS image URL')||'','image')
+   if(!src)return sigSetStatus('Image URLs must use HTTPS.',true)
+   userSigEditor.focus();document.execCommand('insertHTML',false,'<img src="'+esc(src)+'" alt="Signature image" width="200">');sigRenderPreview()
+ })
+ document.getElementById('signatureAddTable').addEventListener('click',()=>{
+   userSigEditor.focus();document.execCommand('insertHTML',false,'<table style="border-collapse:collapse"><tbody><tr><td style="padding:6px">Left column</td><td style="padding:6px">Right column</td></tr></tbody></table>');sigRenderPreview()
+ })
+ document.getElementById('signatureClearFormat').addEventListener('click',()=>{userSigEditor.focus();document.execCommand('removeFormat',false,null);sigRenderPreview()})
+ userSigEditor.addEventListener('input',sigRenderPreview)
+ userSigEditor.addEventListener('paste',e=>{
+   e.preventDefault()
+   const html=e.clipboardData?.getData('text/html')
+   const text=e.clipboardData?.getData('text/plain')||''
+   document.execCommand('insertHTML',false,html?sigSanitize(html):esc(text).replace(/\n/g,'<br>'))
+   sigRenderPreview()
+ })
+ document.getElementById('signatureSave').addEventListener('click',async()=>{
+   const name=sigName.value.trim(), html=sigSanitize(userSigEditor.innerHTML), plain=sigText(html)
+   if(!name)return sigSetStatus('Enter a signature name.',true)
+   if(!plain&&!/<img\b/i.test(html))return sigSetStatus('Add signature content before saving.',true)
+   sigSetStatus('Saving...')
+   const data={name,content_html:html,content_text:plain,design:{editor:'visual-v1'},is_default_new:false,is_default_reply:false}
+   let result
+   if(selectedSigId)result=await supabase.from('dflandscape_user_signatures').update(data).eq('id',selectedSigId).eq('user_id',user.id).select('id').single()
+   else result=await supabase.from('dflandscape_user_signatures').insert({...data,user_id:user.id}).select('id').single()
+   if(result.error)return sigSetStatus(result.error.message,true)
+   selectedSigId=result.data.id
+   // Clear existing defaults before setting the requested one (partial unique indexes).
+   for(const [key,checked] of [['is_default_new',sigNew.checked],['is_default_reply',sigReply.checked]]){
+     if(!checked)continue
+     const cleared=await supabase.from('dflandscape_user_signatures').update({[key]:false}).eq('user_id',user.id).eq(key,true)
+     if(cleared.error)return sigSetStatus(cleared.error.message,true)
+     const updated=await supabase.from('dflandscape_user_signatures').update({[key]:true}).eq('id',selectedSigId).eq('user_id',user.id)
+     if(updated.error)return sigSetStatus(updated.error.message,true)
+   }
+   // Explicitly turning off a default also works.
+   const deselect={}
+   if(!sigNew.checked)deselect.is_default_new=false
+   if(!sigReply.checked)deselect.is_default_reply=false
+   if(Object.keys(deselect).length){const res=await supabase.from('dflandscape_user_signatures').update(deselect).eq('id',selectedSigId).eq('user_id',user.id);if(res.error)return sigSetStatus(res.error.message,true)}
+   await sigRefresh();sigSetStatus('Signature saved.')
+ })
+ sigRefresh().catch(e=>sigSetStatus(e.message||'Unable to load signatures.',true))
+}
+
 if(signatureMailbox)loadSettingsMailboxes()
 if(mailRuleList)loadMailRules()
 
