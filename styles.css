@@ -1623,3 +1623,24 @@ body.email-fullscreen-open{overflow:hidden}
 .compose-signature-hint{font-size:12px;color:#738076;padding:0 4px}
 .compose-signature-hint a{color:inherit;text-decoration:underline}
 @media(max-width:650px){.signature-designer{grid-template-columns:1fr}}
+
+/* User signature WYSIWYG editor */
+.signature-manager{display:grid;gap:15px;margin-top:18px}
+.signature-manager-top{display:flex;align-items:end;flex-wrap:wrap;gap:10px}
+.signature-manager-top label{flex:1;min-width:200px}
+.signature-manager input[type=text],.signature-manager select{border:1px solid #c5d4c8;border-radius:9px;padding:10px;background:white;color:#1b3327;width:100%;box-sizing:border-box}
+.signature-manager label{display:grid;gap:6px}
+.signature-defaults{display:flex;flex-wrap:wrap;gap:14px}
+.signature-defaults label{display:flex;align-items:center;gap:7px}
+.signature-toolbar{display:flex;flex-wrap:wrap;gap:7px;padding:10px;background:#f2f7f3;border-radius:10px}
+.signature-toolbar button,.signature-manager-top button{min-width:38px}
+.signature-toolbar label{display:flex;align-items:center;gap:5px;font-size:12px}
+.signature-toolbar input[type=color]{width:35px;height:32px;padding:1px}
+.signature-toolbar select{width:auto}
+.signature-rich-editor{background:#fff;border:1px solid #b3c7b7;border-radius:12px;padding:18px;min-height:170px;color:#203629;font:14px/1.5 Arial,sans-serif;overflow-wrap:anywhere}
+.signature-rich-editor:empty:before{content:attr(data-placeholder);color:#819388;pointer-events:none}
+.signature-rich-editor img,.signature-email-preview img{max-width:100%;height:auto}
+.signature-email-preview{min-height:95px;overflow-wrap:anywhere}
+.signature-editor-guide{font-size:12px;color:#617367}
+.signature-manager-bottom{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.signature-danger{color:#9b2929!important}
