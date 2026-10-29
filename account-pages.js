@@ -325,6 +325,17 @@ signatureForm?.addEventListener('submit',async e=>{
   msg.classList.add('success')
 })
 
+
+// Batch 1: user-owned signatures. Legacy mailbox signatures are retained for compatibility.
+async function loadUserSignatureRecords(){
+ const {data,error}=await supabase.from('dflandscape_user_signatures')
+   .select('id,name,content_text,content_html,design,is_default_new,is_default_reply,created_at')
+   .eq('user_id',user.id).order('created_at',{ascending:true})
+ if(error){console.warn('Unable to load user signatures',error);return}
+ window.dflUserSignatures=data||[]
+}
+await loadUserSignatureRecords()
+
 if(signatureMailbox)loadSettingsMailboxes()
 if(mailRuleList)loadMailRules()
 
