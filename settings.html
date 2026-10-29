@@ -118,10 +118,20 @@
             Mailbox
             <select id="signatureMailbox"></select>
           </label>
-          <label>
-            Signature
-            <textarea id="signatureText" rows="6" maxlength="2000" placeholder="Example:&#10;Don White&#10;Desert Forest Landscape&#10;702-875-2616"></textarea>
-          </label>
+          <div class="signature-designer">
+  <label>Signature style<select id="signatureStyle"><option value="branded">Branded (with logo)</option><option value="simple">Simple text</option></select></label>
+  <label>Full name<input id="signatureName" maxlength="100" placeholder="Don White"></label>
+  <label>Job title<input id="signatureTitle" maxlength="100" placeholder="Owner"></label>
+  <label>Business name<input id="signatureBusiness" maxlength="100" placeholder="Desert Forest Landscape"></label>
+  <label>Phone number<input id="signaturePhone" maxlength="50" placeholder="Business phone"></label>
+  <label>Website<input id="signatureWebsite" maxlength="200" placeholder="https://..."></label>
+  <label>Logo URL<input id="signatureLogo" maxlength="500" placeholder="https://..."></label>
+  <label class="signature-check"><input type="checkbox" id="signatureIncludeLogo" checked> Include company logo</label>
+  <div class="signature-preview-label">Live preview</div>
+  <div id="signaturePreview" class="signature-preview"></div>
+  <label>Plain text fallback<textarea id="signatureText" rows="5" maxlength="2000" placeholder="Optional custom plain text signature"></textarea></label>
+  <p class="account-card-subtext">Each mailbox has its own signature. The logo is hosted from your existing DFLandscape brand images. Replies and forwards use the selected mailbox signature.</p>
+</div>
           <button type="submit">Save signature</button>
           <p class="account-message" id="signatureMessage" aria-live="polite"></p>
         </form>
