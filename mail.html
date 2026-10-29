@@ -276,7 +276,7 @@
         <strong>New message</strong>
         <button type="button" id="closeCompose" aria-label="Close">×</button>
       </div>
-      <label>From<select id="composeFrom"></select></label><div class="compose-signature-hint">Signature follows the selected sending mailbox. Edit it in <a href="settings.html">Settings</a>.</div>
+      <label>From<select id="composeFrom"></select></label><div class="compose-signature-hint">Your signatures belong to your user account, not the sending mailbox. <a href="settings.html">Manage signatures</a>.</div><label class="compose-signature-picker">Signature<select id="composeSignature"><option value="">None</option></select></label>
       <div class="recipient-field">
         <label>To<input type="text" id="composeTo" autocomplete="off" placeholder="name@example.com, another@example.com" required></label>
         <div class="recipient-suggestions" id="toSuggestions" hidden></div>
@@ -294,7 +294,7 @@
         <div class="recipient-suggestions" id="bccSuggestions" hidden></div>
       </div>
       <label>Subject<input type="text" id="composeSubject"></label>
-      <textarea id="composeBody" placeholder="Write your message..."></textarea>
+      <textarea id="composeBody" placeholder="Write your message..."></textarea><div id="composeSignaturePreview" class="compose-signature-preview" hidden></div>
       <div class="compose-attachments">
         <input id="composeAttachmentInput" type="file" multiple hidden>
         <button type="button" id="addAttachmentBtn" class="attachment-add-btn">Attach files</button>
