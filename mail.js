@@ -1646,7 +1646,10 @@ const dflSignatureLogo="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/
 function signatureProfileFor(mailbox){
  const list=session.user.user_metadata?.email_signature_profiles||{}
  const stored=list[mailbox]
- if(!stored)return null
+ if(!stored){
+   if(/^don(?:[._-]|@)/i.test(String(mailbox||'')))return {name:'Don White',title:'',business:'Desert Forest Landscape',phone:'',website:'',logo:dflSignatureLogo,style:'branded',includeLogo:true}
+   return null
+ }
  return stored&&typeof stored==='object'?stored:null
 }
 function signatureTextFor(p){
