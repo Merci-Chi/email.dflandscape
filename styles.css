@@ -1649,3 +1649,8 @@ body.email-fullscreen-open{overflow:hidden}
 .signature-media-tile{display:grid;gap:5px;justify-items:center;align-content:start;width:110px;padding:8px;border:1px solid #ccd9cd;border-radius:10px;background:#fff}
 .signature-media-tile img{width:94px;height:74px;object-fit:contain}
 .signature-media-tile button{font-size:12px;padding:5px 8px}
+
+.compose-signature-picker{display:flex;flex-direction:column;gap:5px;font-size:13px}
+.compose-signature-preview{border-top:1px solid #d5e3d8;margin:8px 0 12px;padding:14px;background:#fff;color:#22372a;font:13px/1.5 Arial,sans-serif;max-height:250px;overflow:auto}
+.compose-signature-preview img{max-width:100%;height:auto}
+.compose-signature-preview table{max-width:100%}
