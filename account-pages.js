@@ -230,6 +230,39 @@ async function loadSettingsMailboxes(){
   }
 }
 
+
+const signatureFields=['Name','Title','Business','Phone','Website','Logo','Style']
+const signatureDefaultLogo="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/text.png"
+function signatureProfiles(){const v=user.user_metadata?.email_signature_profiles;return v&&typeof v==='object'&&!Array.isArray(v)?{...v}:{}}
+function defaultSignatureProfile(mailbox){
+ const isDon=/^don(?:[._-]|@)/i.test(mailbox)||(/^don white$/i.test(displayName)&&mailbox===email)
+ return {name:isDon?'Don White':displayName,title:'',business:'Desert Forest Landscape',phone:'',website:'',logo:signatureDefaultLogo,style:'branded',includeLogo:true}
+}
+function signatureProfile(){return {...defaultSignatureProfile(signatureMailbox.value),...signatureProfiles()[signatureMailbox.value]}}
+function signatureSafeUrl(value){try{const u=new URL(String(value||''));return ['https:','http:'].includes(u.protocol)?u.href:''}catch{return ''}}
+function signaturePreviewRender(){
+ if(!signatureMailbox)return
+ const get=k=>document.getElementById('signature'+k)
+ const values=Object.fromEntries(signatureFields.map(k=>[k,get(k)?.value.trim()||'']))
+ const logo=signatureSafeUrl(values.Logo)
+ const web=signatureSafeUrl(values.Website)
+ const includeLogo=get('IncludeLogo')?.checked&&values.Style!=='simple'
+ const content='<strong style="font-size:17px;color:#143c27">'+esc(values.Name)+'</strong>'+
+ (values.Title?'<div>'+esc(values.Title)+'</div>':'')+
+ (values.Business?'<div style="font-weight:600;color:#275840">'+esc(values.Business)+'</div>':'')+
+ (values.Phone?'<div>'+esc(values.Phone)+'</div>':'')+
+ (web?'<div><a href="'+esc(web)+'" target="_blank" rel="noopener noreferrer">'+esc(values.Website)+'</a></div>':'')
+ document.getElementById('signaturePreview').innerHTML='<div class="signature-preview-inner">'+(includeLogo&&logo?'<img src="'+esc(logo)+'" alt="Company logo">':'')+'<div>'+content+'</div></div>'
+}
+function loadSignatureProfile(){
+ const p=signatureProfile()
+ for(const key of signatureFields){const field=document.getElementById('signature'+key);if(field)field.value=p[key.toLowerCase()]||''}
+ const checkbox=document.getElementById('signatureIncludeLogo')
+ if(checkbox)checkbox.checked=p.includeLogo!==false
+ signaturePreviewRender()
+}
+for(const field of [...signatureFields,'IncludeLogo'])document.getElementById('signature'+field)?.addEventListener('input',signaturePreviewRender)
+
 function currentSignatures(){
   const value=user.user_metadata?.email_signatures
   return value&&typeof value==='object'&&!Array.isArray(value)?{...value}:{}
@@ -239,6 +272,7 @@ function loadSelectedSignature(){
   if(!signatureMailbox||!signatureText)return
   const signatures=currentSignatures()
   signatureText.value=String(signatures[signatureMailbox.value]||'')
+  loadSignatureProfile()
 }
 
 if(settingsEmail)settingsEmail.value=email
@@ -281,8 +315,10 @@ signatureForm?.addEventListener('submit',async e=>{
   if(!mailbox){msg.textContent='Choose a mailbox.';return}
   const signatures=currentSignatures()
   signatures[mailbox]=signatureText.value.trim()
+  const profiles=signatureProfiles()
+  profiles[mailbox]={...Object.fromEntries(signatureFields.map(k=>[k.toLowerCase(),document.getElementById('signature'+k)?.value.trim()||''])),includeLogo:document.getElementById('signatureIncludeLogo')?.checked===true}
   msg.textContent='Saving…'
-  const {data,error}=await supabase.auth.updateUser({data:{email_signatures:signatures}})
+  const {data,error}=await supabase.auth.updateUser({data:{email_signatures:signatures,email_signature_profiles:profiles}})
   if(error){msg.textContent=error.message||'Unable to save signature.';return}
   if(data?.user)Object.assign(user,data.user)
   msg.textContent='Signature saved.'
