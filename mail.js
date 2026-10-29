@@ -200,6 +200,69 @@ async function applyRulesToMessages(mailbox,messages){
     }
   }
 }
+
+/* Batch 4: signatures follow the signed-in USER, regardless of mailbox. */
+const composeSignature=document.getElementById('composeSignature')
+const composeSignaturePreview=document.getElementById('composeSignaturePreview')
+let userSignatureRows=[]
+let activeSignatureId=''
+let composerKind='new'
+const sigEsc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+function activeUserSignature(){return userSignatureRows.find(r=>r.id===activeSignatureId)||null}
+function signedSignaturePlain(row){return String(row?.content_text||'').trim()}
+function signedSignatureHtml(row){
+ if(!row)return ''
+ // HTML was sanitized on save by the editor. Validate again before rendering/sending.
+ const doc=new DOMParser().parseFromString(String(row.content_html||''),'text/html')
+ doc.querySelectorAll('script,style,iframe,object,embed,form,input,button,svg,video,audio,meta,link').forEach(n=>n.remove())
+ doc.querySelectorAll('*').forEach(el=>{
+  for(const a of [...el.attributes]){
+   if(a.name.startsWith('on')||a.name==='srcdoc')el.removeAttribute(a.name)
+   if(['href','src'].includes(a.name)){
+    try{const u=new URL(a.value);if(!(a.name==='src'?u.protocol==='https:':['https:','http:','mailto:','tel:'].includes(u.protocol)))el.removeAttribute(a.name)}
+    catch{el.removeAttribute(a.name)}
+   }
+  }
+ })
+ return doc.body.innerHTML||sigEsc(signedSignaturePlain(row)).replace(/\n/g,'<br>')
+}
+function renderComposeSignature(){
+ const row=activeUserSignature()
+ if(!composeSignaturePreview)return
+ composeSignaturePreview.hidden=!row
+ composeSignaturePreview.innerHTML=row?signedSignatureHtml(row):''
+}
+function selectComposeSignature(id){
+ activeSignatureId=userSignatureRows.some(r=>r.id===id)?id:''
+ if(composeSignature)composeSignature.value=activeSignatureId
+ renderComposeSignature()
+ scheduleDraftSave()
+}
+function defaultComposeSignature(kind='new'){
+ const field=kind==='new'?'is_default_new':'is_default_reply'
+ selectComposeSignature(userSignatureRows.find(r=>r[field])?.id||'')
+}
+async function fetchUserSignatures(){
+ const {data,error}=await supabase.from('dflandscape_user_signatures')
+  .select('id,name,content_html,content_text,is_default_new,is_default_reply')
+  .eq('user_id',session.user.id).order('created_at',{ascending:true})
+ if(error){console.warn('Unable to load personal signatures',error);return}
+ userSignatureRows=data||[]
+ if(composeSignature){
+  composeSignature.innerHTML='<option value="">None</option>'+userSignatureRows.map(r=>'<option value="'+sigEsc(r.id)+'">'+sigEsc(r.name)+'</option>').join('')
+  composeSignature.value=activeSignatureId
+ }
+ renderComposeSignature()
+}
+composeSignature?.addEventListener('change',()=>selectComposeSignature(composeSignature.value))
+fetchUserSignatures().then(()=>{if(composeModal&&!composeModal.classList.contains('hidden')&&!composeOpenedFromDraft)defaultComposeSignature(composerKind)})
+function emailBodyHtml(message,signature){
+ const text=sigEsc(message).replace(/\r?\n/g,'<br>')
+ const signatureHtml=signedSignatureHtml(signature)
+ return '<!doctype html><html><body><div style="font:14px Arial,sans-serif;white-space:normal">'+text+'</div>'+
+ (signature?'<div style="margin-top:18px">'+signatureHtml+'</div>':'')+'</body></html>'
+}
+
 function composeSendPayload(){
   return {
     mailbox_email:composeFrom.value,
@@ -207,8 +270,8 @@ function composeSendPayload(){
     cc:composeCc?.value.trim()||'',
     bcc:composeBcc?.value.trim()||'',
     subject:composeSubject.value.trim(),
-    body:composeBody.value,
-    html:composeHtmlEmail(composeBody.value,composeFrom.value),
+    body:composeBody.value+(activeUserSignature()?"\n\n-- \n"+signedSignaturePlain(activeUserSignature()):""),
+    html:emailBodyHtml(composeBody.value,activeUserSignature()),
     attachments:composeAttachments.map(a=>({
       filename:safeAttachmentName(a.filename),
       mimeType:a.mimeType||'application/octet-stream',
@@ -1705,7 +1768,9 @@ function currentDraft(){
     cc:composeCc?.value||'',
     bcc:composeBcc?.value||'',
     subject:composeSubject?.value||'',
-    body:composeBody?.value||''
+    body:composeBody?.value||'',
+    signature_id:activeSignatureId,
+    composer_kind:composerKind
   }
 }
 function draftHasContent(draft=currentDraft()){
@@ -1743,6 +1808,8 @@ function restoreDraft(mailbox=composeFrom?.value||activeAccount?.email||''){
     if(composeBcc)composeBcc.value=draft.bcc||''
     if(composeSubject)composeSubject.value=draft.subject||''
     if(composeBody)composeBody.value=draft.body||''
+    composerKind=draft.composer_kind||'new'
+    selectComposeSignature(draft.signature_id||'')
     if(draft.cc)document.getElementById('ccRow')?.classList.remove('hidden')
     if(draft.bcc)document.getElementById('bccRow')?.classList.remove('hidden')
     if(composeDraftNote)composeDraftNote.textContent='Draft restored'
@@ -1754,6 +1821,7 @@ function openNewComposer(){
   renderComposeAccounts()
   if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
   composeOpenedFromDraft=false
+  composerKind='new'
   composeModal?.classList.remove('hidden')
   closeMobileMenu()
   const restored=restoreDraft()
@@ -1763,7 +1831,8 @@ function openNewComposer(){
     renderComposeAttachments()
     renderComposeAccounts()
     if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
-    if(composeBody)composeBody.value=appendSignature('',composeFrom?.value)
+    if(composeBody)composeBody.value=''
+    defaultComposeSignature('new')
   }
   setTimeout(()=>composeTo?.focus(),50)
 }
@@ -1774,7 +1843,9 @@ function setComposeValues({to='',cc='',bcc='',subject='',body='',attachments=[]}
   if(composeCc)composeCc.value=cc
   if(composeBcc)composeBcc.value=bcc
   if(composeSubject)composeSubject.value=subject
-  if(composeBody)composeBody.value=appendSignature(body,composeFrom?.value)
+  if(composeBody)composeBody.value=body
+  composerKind='reply'
+  defaultComposeSignature('reply')
   composeAttachments=(attachments||[]).map(a=>({...a}))
   renderComposeAttachments()
   if(cc)document.getElementById('ccRow')?.classList.remove('hidden')
@@ -2104,7 +2175,7 @@ composeFrom?.addEventListener('change',()=>{
   }
   const previousMailbox=composeMailboxBeforeChange
   composeMailboxBeforeChange=composeFrom.value
-  if(!composeOpenedFromDraft&&composeBody){
+  if(false&&!composeOpenedFromDraft&&composeBody){
     const old=signatureProfileFor(previousMailbox)
     const oldText=old?signatureTextFor(old):getSignature(previousMailbox)
     const suffix=oldText?'-- \\n'+oldText:''
