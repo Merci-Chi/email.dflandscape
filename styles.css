@@ -1608,3 +1608,18 @@ body.email-fullscreen-open{overflow:hidden}
 .save-email-check{display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 20px!important;width:20px!important;height:20px!important;line-height:1!important;border:1.5px solid #93a597;border-radius:5px;background:#fff;color:transparent;font-size:13px;font-weight:900;box-sizing:border-box}
 .save-email-row input:checked+.save-email-check{background:#173622;color:#fff;border-color:#173622}
 .save-email-row input:focus-visible+.save-email-check{outline:3px solid #9db6a3;outline-offset:2px}
+
+/* Branded email signatures */
+.signature-designer{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}
+.signature-designer label{display:flex;flex-direction:column;gap:6px;min-width:0}
+.signature-designer input,.signature-designer select,.signature-designer textarea{width:100%;box-sizing:border-box;border:1px solid #cbd9ce;border-radius:9px;padding:11px;font:inherit;background:#fff;color:#1d3425}
+.signature-designer .signature-check{flex-direction:row;align-items:center;grid-column:1/-1}
+.signature-designer .signature-check input{width:auto}
+.signature-preview-label,.signature-preview,.signature-designer label:has(#signatureText),.signature-designer>.account-card-subtext{grid-column:1/-1}
+.signature-preview{border:1px solid #cbd9ce;background:white;border-radius:12px;padding:20px;min-height:105px;color:#1d3023}
+.signature-preview-inner{display:flex;gap:16px;align-items:center;font:14px/1.5 Arial,sans-serif}
+.signature-preview-inner img{max-width:125px;max-height:110px;object-fit:contain}
+.signature-preview-label{font-weight:700}
+.compose-signature-hint{font-size:12px;color:#738076;padding:0 4px}
+.compose-signature-hint a{color:inherit;text-decoration:underline}
+@media(max-width:650px){.signature-designer{grid-template-columns:1fr}}
