@@ -212,19 +212,37 @@ function activeUserSignature(){return userSignatureRows.find(r=>r.id===activeSig
 function signedSignaturePlain(row){return String(row?.content_text||'').trim()}
 function signedSignatureHtml(row){
  if(!row)return ''
- // HTML was sanitized on save by the editor. Validate again before rendering/sending.
- const doc=new DOMParser().parseFromString(String(row.content_html||''),'text/html')
- doc.querySelectorAll('script,style,iframe,object,embed,form,input,button,svg,video,audio,meta,link').forEach(n=>n.remove())
- doc.querySelectorAll('*').forEach(el=>{
-  for(const a of [...el.attributes]){
-   if(a.name.startsWith('on')||a.name==='srcdoc')el.removeAttribute(a.name)
-   if(['href','src'].includes(a.name)){
-    try{const u=new URL(a.value);if(!(a.name==='src'?u.protocol==='https:':['https:','http:','mailto:','tel:'].includes(u.protocol)))el.removeAttribute(a.name)}
-    catch{el.removeAttribute(a.name)}
+ const allowed=new Set(['DIV','P','BR','SPAN','B','STRONG','I','EM','U','S','A','IMG','TABLE','TBODY','TR','TD','TH','UL','OL','LI','FONT','BLOCKQUOTE'])
+ const styles=new Set(['color','background-color','font-weight','font-style','text-decoration','font-size','font-family','text-align','vertical-align','width','height','max-width','border','border-collapse','padding','padding-left','padding-right'])
+ const source=new DOMParser().parseFromString('<div>'+String(row.content_html||'')+'</div>','text/html').body.firstElementChild
+ const out=document.createElement('div')
+ function clean(parent,node){
+  if(node.nodeType===Node.TEXT_NODE){parent.appendChild(document.createTextNode(node.textContent||''));return}
+  if(node.nodeType!==Node.ELEMENT_NODE)return
+  const tag=node.tagName.toUpperCase()
+  if(['SCRIPT','STYLE','IFRAME','SVG','FORM','INPUT','BUTTON','OBJECT','EMBED','VIDEO','AUDIO','META','LINK'].includes(tag))return
+  const accepted=allowed.has(tag)
+  const element=accepted?document.createElement(tag.toLowerCase()):parent
+  if(accepted){
+   if(tag==='A'){
+    try{const u=new URL(node.getAttribute('href')||'');if(['https:','http:','mailto:','tel:'].includes(u.protocol))element.setAttribute('href',u.href)}catch{}
    }
+   if(tag==='IMG'){
+    try{const u=new URL(node.getAttribute('src')||'');if(u.protocol!=='https:')return;element.setAttribute('src',u.href)}catch{return}
+    element.setAttribute('alt',(node.getAttribute('alt')||'Signature image').slice(0,120))
+    element.setAttribute('width',String(Math.min(600,Math.max(20,Number(node.getAttribute('width'))||200))))
+   }
+   for(const declaration of String(node.getAttribute('style')||'').split(';')){
+    const index=declaration.indexOf(':');if(index<0)continue
+    const key=declaration.slice(0,index).trim().toLowerCase(),value=declaration.slice(index+1).trim()
+    if(styles.has(key)&&value.length<100&&!/url\s*\(|expression\s*\(|[<>]/i.test(value))element.style.setProperty(key,value)
+   }
+   parent.appendChild(element)
   }
- })
- return doc.body.innerHTML||sigEsc(signedSignaturePlain(row)).replace(/\n/g,'<br>')
+  for(const child of [...node.childNodes])clean(element,child)
+ }
+ for(const node of [...source.childNodes])clean(out,node)
+ return out.innerHTML||sigEsc(signedSignaturePlain(row)).replace(/\n/g,'<br>')
 }
 function renderComposeSignature(){
  const row=activeUserSignature()
