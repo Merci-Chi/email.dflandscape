@@ -1817,7 +1817,8 @@ function restoreDraft(mailbox=composeFrom?.value||activeAccount?.email||''){
     return true
   }catch{return false}
 }
-function openNewComposer(){
+async function openNewComposer(){
+  await fetchUserSignatures()
   renderComposeAccounts()
   if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
   composeOpenedFromDraft=false
@@ -1836,7 +1837,8 @@ function openNewComposer(){
   }
   setTimeout(()=>composeTo?.focus(),50)
 }
-function setComposeValues({to='',cc='',bcc='',subject='',body='',attachments=[]}={}){
+async function setComposeValues({to='',cc='',bcc='',subject='',body='',attachments=[]}={}){
+  await fetchUserSignatures()
   renderComposeAccounts()
   if(composeFrom&&activeAccount)composeFrom.value=activeAccount.email
   if(composeTo)composeTo.value=to
