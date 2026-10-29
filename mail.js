@@ -208,6 +208,7 @@ function composeSendPayload(){
     bcc:composeBcc?.value.trim()||'',
     subject:composeSubject.value.trim(),
     body:composeBody.value,
+    html:composeHtmlEmail(composeBody.value,composeFrom.value),
     attachments:composeAttachments.map(a=>({
       filename:safeAttachmentName(a.filename),
       mimeType:a.mimeType||'application/octet-stream',
@@ -1640,6 +1641,42 @@ function renderReader(){
 }
 function renderComposeAccounts(){if(composeFrom)composeFrom.innerHTML=accounts.map(a=>`<option value="${esc(a.email)}" ${activeAccount?.email===a.email?'selected':''}>${esc(a.email)}</option>`).join('')}
 
+
+const dflSignatureLogo="https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/text.png"
+function signatureProfileFor(mailbox){
+ const list=session.user.user_metadata?.email_signature_profiles||{}
+ const stored=list[mailbox]
+ if(!stored)return null
+ return stored&&typeof stored==='object'?stored:null
+}
+function signatureTextFor(p){
+ return [p.name,p.title,p.business,p.phone,p.website].filter(Boolean).join('\n')
+}
+function signatureHtmlEscape(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function signatureHref(x){try{const u=new URL(String(x||''));return ['https:','http:'].includes(u.protocol)?u.href:''}catch{return ''}}
+function composeHtmlEmail(body,mailbox){
+ const p=signatureProfileFor(mailbox)
+ if(!p)return ''
+ const textSignature=signatureTextFor(p)
+ const oldSignature=getSignature(mailbox)
+ const original=String(body||'')
+ let main=original
+ for(const sig of [textSignature,oldSignature].filter(Boolean)){
+   const trailer='-- \n'+sig
+   if(main.endsWith(trailer))main=main.slice(0,-trailer.length).trimEnd()
+ }
+ const lines=main.split('\n').map(line=>signatureHtmlEscape(line)).join('<br>')
+ const img=signatureHref(p.logo||dflSignatureLogo)
+ const url=signatureHref(p.website)
+ const name=signatureHtmlEscape(p.name)
+ const details=[p.title,p.business,p.phone].filter(Boolean).map(v=>'<div style="padding:2px 0">'+signatureHtmlEscape(v)+'</div>').join('')
+ const website=url?'<div><a style="color:#276341;text-decoration:none" href="'+signatureHtmlEscape(url)+'">'+signatureHtmlEscape(p.website)+'</a></div>':''
+ const logo=p.includeLogo!==false&&p.style!=='simple'&&img?'<td style="padding-right:16px;vertical-align:top"><img src="'+signatureHtmlEscape(img)+'" width="125" alt="Desert Forest Landscape" style="max-width:125px;height:auto;border:0"></td>':''
+ return '<!doctype html><html><body><div style="white-space:normal;font:14px Arial,sans-serif;color:#1b2920">'+lines+'</div>'+
+ '<table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:18px;border-top:2px solid #398255;padding-top:14px;font:13px Arial,sans-serif;color:#26352a"><tr>'+logo+
+ '<td style="vertical-align:top"><strong style="color:#15452d;font-size:17px">'+name+'</strong>'+details+website+'</td></tr></table></body></html>'
+}
+
 function signaturesMap(){
   const value=session.user.user_metadata?.email_signatures
   return value&&typeof value==='object'&&!Array.isArray(value)?value:{}
@@ -1648,7 +1685,8 @@ function getSignature(mailbox=composeFrom?.value||activeAccount?.email||''){
   return String(signaturesMap()[mailbox]||'').trim()
 }
 function appendSignature(body='',mailbox=composeFrom?.value||activeAccount?.email||''){
-  const signature=getSignature(mailbox)
+  const profile=signatureProfileFor(mailbox)
+  const signature=profile?signatureTextFor(profile):getSignature(mailbox)
   if(!signature)return body
   const clean=String(body||'')
   if(clean.includes(signature))return clean
@@ -2061,8 +2099,16 @@ composeFrom?.addEventListener('change',()=>{
     const draft=currentDraft()
     localStorage.setItem(draftKey(composeMailboxBeforeChange),JSON.stringify({...draft,from:composeMailboxBeforeChange,saved_at:new Date().toISOString()}))
   }
+  const previousMailbox=composeMailboxBeforeChange
   composeMailboxBeforeChange=composeFrom.value
-  if(!composeOpenedFromDraft&&composeBody&&!composeBody.value.trim())composeBody.value=appendSignature('',composeFrom.value)
+  if(!composeOpenedFromDraft&&composeBody){
+    const old=signatureProfileFor(previousMailbox)
+    const oldText=old?signatureTextFor(old):getSignature(previousMailbox)
+    const suffix=oldText?'-- \\n'+oldText:''
+    let current=composeBody.value
+    if(suffix&&current.endsWith(suffix))current=current.slice(0,-suffix.length).trimEnd()
+    composeBody.value=appendSignature(current,composeFrom.value)
+  }
   scheduleDraftSave()
 })
 
