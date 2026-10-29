@@ -133,12 +133,12 @@
             <label>Text color <input type="color" id="sigTextColor" value="#224d35"></label>
             <label>Font size <select id="sigFontSize"><option value="3">Normal</option><option value="2">Small</option><option value="4">Large</option><option value="5">Extra large</option></select></label>
             <button type="button" id="signatureAddLink">Link</button>
-            <button type="button" id="signatureAddImage">Image URL</button>
+            <button type="button" id="signatureAddImage">Image URL</button><button type="button" id="signatureUploadButton">Upload photo / logo</button><input type="file" id="signatureUploadInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
             <button type="button" id="signatureAddTable">Table</button>
             <button type="button" id="signatureClearFormat">Clear formatting</button>
           </div>
           <div id="userSignatureEditor" class="signature-rich-editor" contenteditable="true" role="textbox" aria-label="Email signature body" aria-multiline="true" data-placeholder="Write your signature, add logos, images, clickable links, and style your text."></div>
-          <div class="signature-editor-guide">Paste formatted text, or add images by HTTPS URL. Direct image uploads will be added in Batch 3. Keep external images publicly accessible for email recipients.</div>
+          <div class="signature-editor-guide">Upload a logo or photo (PNG, JPG, WebP, GIF; up to 3 MB each), or insert a public HTTPS image URL. Uploaded images are visible to email recipients.</div><div id="signatureMediaLibrary" class="signature-media-library" aria-label="My uploaded signature images"></div>
           <strong>Preview</strong>
           <div id="userSignaturePreview" class="signature-preview signature-email-preview"></div>
           <div class="signature-manager-bottom">
