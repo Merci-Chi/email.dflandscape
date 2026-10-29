@@ -255,7 +255,7 @@ async function fetchUserSignatures(){
  renderComposeSignature()
 }
 composeSignature?.addEventListener('change',()=>selectComposeSignature(composeSignature.value))
-fetchUserSignatures().then(()=>{if(composeModal&&!composeModal.classList.contains('hidden')&&!composeOpenedFromDraft)defaultComposeSignature(composerKind)})
+fetchUserSignatures()
 function emailBodyHtml(message,signature){
  const text=sigEsc(message).replace(/\r?\n/g,'<br>')
  const signatureHtml=signedSignatureHtml(signature)
