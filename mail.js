@@ -2173,16 +2173,8 @@ composeFrom?.addEventListener('change',()=>{
     const draft=currentDraft()
     localStorage.setItem(draftKey(composeMailboxBeforeChange),JSON.stringify({...draft,from:composeMailboxBeforeChange,saved_at:new Date().toISOString()}))
   }
-  const previousMailbox=composeMailboxBeforeChange
   composeMailboxBeforeChange=composeFrom.value
-  if(false&&!composeOpenedFromDraft&&composeBody){
-    const old=signatureProfileFor(previousMailbox)
-    const oldText=old?signatureTextFor(old):getSignature(previousMailbox)
-    const suffix=oldText?'-- \\n'+oldText:''
-    let current=composeBody.value
-    if(suffix&&current.endsWith(suffix))current=current.slice(0,-suffix.length).trimEnd()
-    composeBody.value=appendSignature(current,composeFrom.value)
-  }
+  // Signatures are user-owned and independent of sender mailbox.
   scheduleDraftSave()
 })
 
