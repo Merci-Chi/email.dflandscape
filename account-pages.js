@@ -412,6 +412,32 @@ if(userSigEditor&&userSigSelect){
    sigRows=data||[];window.dflUserSignatures=sigRows
    sigLoad(sigRows.some(x=>x.id===selectedSigId)?selectedSigId:(sigRows[0]?.id||''))
  }
+
+ function sigBrandTemplate(person){
+   const name=person==='Don White'?'Don White':(displayName||'Your Name')
+   const brandLogo='https://raw.githubusercontent.com/Merci-Chi/DFLandscape/main/images/text.png'
+   const safeName=esc(name)
+   return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif">'+
+     '<tbody><tr><td style="vertical-align:top;padding-right:18px">'+
+     '<img src="'+brandLogo+'" alt="Desert Forest Landscape" width="155" style="width:155px;max-width:155px;height:auto"></td>'+
+     '<td style="vertical-align:top;padding-left:14px;border-left:3px solid #387a50">'+
+     '<strong style="font-size:18px;color:#173f29">'+safeName+'</strong><br>'+
+     '<span style="font-size:13px;color:#355a43">Desert Forest Landscape</span><br>'+
+     '<a href="https://dflandscape.com" style="font-size:13px;color:#287347;text-decoration:none">dflandscape.com</a>'+
+     '</td></tr></tbody></table>'
+ }
+ function sigApplyTemplate(person){
+   sigLoad('')
+   sigName.value=person==='Don White'?'Don White — Professional':'Company — Professional'
+   userSigEditor.innerHTML=sigSanitize(sigBrandTemplate(person))
+   sigNew.checked=false
+   sigReply.checked=false
+   sigRenderPreview()
+   sigSetStatus('Template ready. Review the details and click Save signature.')
+ }
+ document.getElementById('signatureDonTemplate')?.addEventListener('click',()=>sigApplyTemplate('Don White'))
+ document.getElementById('signatureCompanyTemplate')?.addEventListener('click',()=>sigApplyTemplate('company'))
+
  userSigSelect.addEventListener('change',()=>sigLoad(userSigSelect.value))
  document.getElementById('signatureNew').addEventListener('click',()=>sigLoad(''))
  document.getElementById('signatureDuplicate').addEventListener('click',()=>{
