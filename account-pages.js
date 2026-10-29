@@ -443,6 +443,50 @@ if(userSigEditor&&userSigSelect){
    if(!src)return sigSetStatus('Image URLs must use HTTPS.',true)
    userSigEditor.focus();document.execCommand('insertHTML',false,'<img src="'+esc(src)+'" alt="Signature image" width="200">');sigRenderPreview()
  })
+
+ const sigUploadInput=document.getElementById('signatureUploadInput')
+ const sigMedia=document.getElementById('signatureMediaLibrary')
+ const sigBucket='dflandscape-signatures'
+ const sigPrefix=user.id+'/'
+ function sigPublicImageUrl(path){return supabase.storage.from(sigBucket).getPublicUrl(path).data.publicUrl}
+ function sigAddImage(url){userSigEditor.focus();document.execCommand('insertHTML',false,'<img src="'+esc(url)+'" width="200" alt="Signature image">');sigRenderPreview()}
+ async function sigLoadImages(){
+   const {data,error}=await supabase.storage.from(sigBucket).list(user.id,{limit:100,sortBy:{column:'created_at',order:'desc'}})
+   if(error){sigMedia.textContent='Unable to load images: '+error.message;return}
+   sigMedia.replaceChildren()
+   if(!(data||[]).length){sigMedia.textContent='No uploaded images yet.';return}
+   for(const item of data){
+     if(!item.name||!(/\.(png|jpe?g|webp|gif)$/i).test(item.name))continue
+     const path=sigPrefix+item.name, url=sigPublicImageUrl(path)
+     const tile=document.createElement('div');tile.className='signature-media-tile'
+     const img=document.createElement('img');img.src=url;img.alt='Saved signature image';img.loading='lazy'
+     const use=document.createElement('button');use.type='button';use.textContent='Insert';use.addEventListener('click',()=>sigAddImage(url))
+     const del=document.createElement('button');del.type='button';del.textContent='Remove';del.addEventListener('click',async()=>{
+       if(!confirm('Remove this image from storage? It may stop displaying in signatures or emails already sent.'))return
+       const {error}=await supabase.storage.from(sigBucket).remove([path])
+       if(error)return sigSetStatus(error.message,true)
+       sigSetStatus('Image removed.');await sigLoadImages()
+     })
+     tile.append(img,use,del);sigMedia.append(tile)
+   }
+ }
+ document.getElementById('signatureUploadButton').addEventListener('click',()=>sigUploadInput.click())
+ sigUploadInput.addEventListener('change',async()=>{
+   const files=[...sigUploadInput.files];sigUploadInput.value=''
+   for(const file of files){
+     if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)){sigSetStatus('Unsupported image format: '+file.name,true);continue}
+     if(file.size>3145728){sigSetStatus('Images must be 3 MB or smaller.',true);continue}
+     const ext=({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif'})[file.type]
+     const path=sigPrefix+crypto.randomUUID()+'.'+ext
+     sigSetStatus('Uploading '+file.name+'...')
+     const {error}=await supabase.storage.from(sigBucket).upload(path,file,{contentType:file.type,upsert:false,cacheControl:'3600'})
+     if(error){sigSetStatus(error.message,true);continue}
+     sigAddImage(sigPublicImageUrl(path));sigSetStatus('Image uploaded. Save your signature to keep it.')
+   }
+   await sigLoadImages()
+ })
+ sigLoadImages().catch(e=>sigSetStatus(e.message,true))
+
  document.getElementById('signatureAddTable').addEventListener('click',()=>{
    userSigEditor.focus();document.execCommand('insertHTML',false,'<table style="border-collapse:collapse"><tbody><tr><td style="padding:6px">Left column</td><td style="padding:6px">Right column</td></tr></tbody></table>');sigRenderPreview()
  })
