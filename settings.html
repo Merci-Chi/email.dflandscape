@@ -110,31 +110,42 @@
         </form>
       </section>
 
-      <section class="account-card">
-        <h2>Email signatures</h2>
-        <p class="account-card-subtext">Create a signature for each mailbox you send from. It will be added automatically to new messages, replies, and forwards.</p>
-        <form class="account-form" id="signatureForm">
-          <label>
-            Mailbox
-            <select id="signatureMailbox"></select>
-          </label>
-          <div class="signature-designer">
-  <label>Signature style<select id="signatureStyle"><option value="branded">Branded (with logo)</option><option value="simple">Simple text</option></select></label>
-  <label>Full name<input id="signatureName" maxlength="100" placeholder="Don White"></label>
-  <label>Job title<input id="signatureTitle" maxlength="100" placeholder="Owner"></label>
-  <label>Business name<input id="signatureBusiness" maxlength="100" placeholder="Desert Forest Landscape"></label>
-  <label>Phone number<input id="signaturePhone" maxlength="50" placeholder="Business phone"></label>
-  <label>Website<input id="signatureWebsite" maxlength="200" placeholder="https://..."></label>
-  <label>Logo URL<input id="signatureLogo" maxlength="500" placeholder="https://..."></label>
-  <label class="signature-check"><input type="checkbox" id="signatureIncludeLogo" checked> Include company logo</label>
-  <div class="signature-preview-label">Live preview</div>
-  <div id="signaturePreview" class="signature-preview"></div>
-  <label>Plain text fallback<textarea id="signatureText" rows="5" maxlength="2000" placeholder="Optional custom plain text signature"></textarea></label>
-  <p class="account-card-subtext">Each mailbox has its own signature. The logo is hosted from your existing DFLandscape brand images. Replies and forwards use the selected mailbox signature.</p>
-</div>
-          <button type="submit">Save signature</button>
-          <p class="account-message" id="signatureMessage" aria-live="polite"></p>
-        </form>
+      <section class="account-card" id="userSignatureSettings">
+        <h2>My email signatures</h2>
+        <p class="account-card-subtext">Create as many personal signatures as you like. They belong to your account and can be used with any mailbox you can send from.</p>
+        <div class="signature-manager">
+          <div class="signature-manager-top">
+            <label>My signatures<select id="userSignatureSelect" aria-label="Choose signature"><option value="">New signature</option></select></label>
+            <button type="button" id="signatureNew">New</button>
+            <button type="button" id="signatureDuplicate">Duplicate</button>
+            <button type="button" id="signatureDelete" class="signature-danger">Delete</button>
+          </div>
+          <label>Signature name<input type="text" id="userSignatureName" maxlength="100" placeholder="e.g. Professional, Quick Reply, Promotional"></label>
+          <div class="signature-defaults">
+            <label><input type="checkbox" id="signatureDefaultNew"> Default for new messages</label>
+            <label><input type="checkbox" id="signatureDefaultReply"> Default for replies and forwards</label>
+          </div>
+          <div class="signature-toolbar" role="toolbar" aria-label="Signature formatting">
+            <button type="button" data-sig-cmd="bold" title="Bold"><b>B</b></button>
+            <button type="button" data-sig-cmd="italic" title="Italic"><i>I</i></button>
+            <button type="button" data-sig-cmd="underline" title="Underline"><u>U</u></button>
+            <button type="button" data-sig-cmd="insertUnorderedList" title="Bulleted list">☷</button>
+            <label>Text color <input type="color" id="sigTextColor" value="#224d35"></label>
+            <label>Font size <select id="sigFontSize"><option value="3">Normal</option><option value="2">Small</option><option value="4">Large</option><option value="5">Extra large</option></select></label>
+            <button type="button" id="signatureAddLink">Link</button>
+            <button type="button" id="signatureAddImage">Image URL</button>
+            <button type="button" id="signatureAddTable">Table</button>
+            <button type="button" id="signatureClearFormat">Clear formatting</button>
+          </div>
+          <div id="userSignatureEditor" class="signature-rich-editor" contenteditable="true" role="textbox" aria-label="Email signature body" aria-multiline="true" data-placeholder="Write your signature, add logos, images, clickable links, and style your text."></div>
+          <div class="signature-editor-guide">Paste formatted text, or add images by HTTPS URL. Direct image uploads will be added in Batch 3. Keep external images publicly accessible for email recipients.</div>
+          <strong>Preview</strong>
+          <div id="userSignaturePreview" class="signature-preview signature-email-preview"></div>
+          <div class="signature-manager-bottom">
+            <button type="button" id="signatureSave">Save signature</button>
+            <span id="userSignatureStatus" role="status" aria-live="polite"></span>
+          </div>
+        </div>
       </section>
 
       <section class="account-card">
