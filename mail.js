@@ -1001,7 +1001,7 @@ async function loadMessages({reset=true,force=false}={}){
     return
   }
 
-  if(reset&&!force&&restoreSessionMailboxCache()){
+  if(reset&&!force&&activeFolder!=='Sent'&&restoreSessionMailboxCache()){
     mailboxHeading.textContent=folderHeading()
     mailboxAddress.textContent=folderAddress()
     await loadSnoozedState()
@@ -2187,7 +2187,7 @@ document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',a
   mailboxHeading.textContent=folderHeading()
   mailboxAddress.textContent=folderAddress()
 
-  if(restoreSessionMailboxCache()){
+  if(activeFolder!=='Sent'&&restoreSessionMailboxCache()){
     await loadSnoozedState()
     renderMessages()
     updateLoadMore()
