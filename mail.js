@@ -332,10 +332,14 @@ async function sendPendingUndoMessage(){
       if(key.includes('Sent')&&key.includes('dfl'))localStorage.removeItem(key)
     }
     clearFullSearchCache()
-    if(activeFolder==='Sent')loadMessages({reset:true,force:true})
-    if(result?.sentSaved===false)console.warn('Email delivered but server could not save a Sent copy.')
+    if(activeFolder==='Sent')await refreshMailboxKeepingSelection()
+    if(result?.sentCached!==true){
+      console.error('Mail delivery succeeded but saving its Supabase Sent record was not confirmed.',result)
+      alert('Email was sent, but the Sent history could not be confirmed as saved. Please contact the administrator.')
+    }
+    if(result?.sentSaved===false)console.warn('Hostinger Sent copy was not saved; Supabase Sent status is reported separately.')
     if(toast){
-      toast.querySelector('span').textContent='Sent.'
+      toast.querySelector('span').textContent=result?.sentCached===true?'Sent · saved to Sent':'Sent · history not confirmed'
       setTimeout(()=>toast.hidden=true,1400)
     }
   }catch(error){
@@ -751,7 +755,7 @@ async function applyLaunchTarget(){
   }
 
   activeFolder=folder||'Inbox'
-  if(!mailbox&&activeFolder==='Inbox')allInboxesMode=true
+  if(activeFolder==='Sent'||(!mailbox&&activeFolder==='Inbox'))allInboxesMode=true
   renderAccounts()
   document.querySelectorAll('.folder').forEach(btn=>btn.classList.toggle('active',(btn.dataset.folder||'Inbox')===activeFolder))
 
@@ -2166,11 +2170,28 @@ document.getElementById('bulkSpamBtn')?.addEventListener('click',()=>runBulkMove
 document.getElementById('bulkMoveSelect')?.addEventListener('change',e=>{if(e.target.value){runBulkMove(e.target.value);e.target.value=''}})
 document.getElementById('bulkDeleteBtn')?.addEventListener('click',()=>runBulkAction('delete'))
 async function refreshMailboxKeepingSelection(){
-  const selectedUid=activeMessageId?String(activeMessageId):''
-  const selectedFolder=activeMessage?.sourceFolder||activeFolder
-  const selectedMailbox=activeMessage?.mailbox_email||messageMailbox(activeMessageId)
+  // Keep the reader visible and preserve its scroll position while refreshing.
+  const opened=activeMessage||findMessage(activeMessageId)
+  const selectedUid=opened?.uid||messageUid(activeMessageId)
+  const selectedFolder=opened?.sourceFolder||activeFolder
+  const selectedMailbox=opened?.mailbox_email||messageMailbox(activeMessageId)
+  const readerScroll=readerPanel?.scrollTop||0
+  const oldKey=activeMessageId
   await loadMessages({reset:true,force:true})
-  if(selectedUid)await loadMessage(selectedUid,{sourceFolderOverride:selectedFolder,mailboxOverride:selectedMailbox})
+  if(!selectedUid||!selectedMailbox)return
+  // The message can be absent from the first page after newer mail arrives.
+  // Preserve the existing reader in that case rather than clearing the user's view.
+  const selectedRow=currentMessages.find(m=>
+    String(m.uid)===String(selectedUid)&&
+    String(m.mailbox_email||activeAccount?.email).toLowerCase()===String(selectedMailbox).toLowerCase()
+  )
+  if(oldKey)activeMessageId=selectedRow?messageKey(selectedRow):String(oldKey)
+  if(!activeMessage)await loadMessage(selectedRow?messageKey(selectedRow):String(selectedUid),{
+    sourceFolderOverride:selectedFolder,mailboxOverride:selectedMailbox
+  })
+  if(readerPanel)readerPanel.scrollTop=readerScroll
+  saveOpenMessage()
+  renderMessages()
 }
 
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{
