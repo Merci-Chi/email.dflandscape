@@ -919,10 +919,7 @@ async function loadFullMailboxHeaders(){
     if(activeFolder==='Sent'&&allInboxesMode){
       return loadAuthorizedSent({query,pageSize:100})
     }
-    if(activeFolder==='Sent'&&allInboxesMode){
-      pageMessages=await loadAuthorizedSent({pageSize:100})
-      mailHasMore=false
-    }else if(activeFolder==='Inbox'&&allInboxesMode){
+    if(activeFolder==='Inbox'&&allInboxesMode){
       const result=await callMailFunction({
         action:'all_inboxes',
         query,
@@ -1027,7 +1024,10 @@ async function loadMessages({reset=true,force=false}={}){
   try{
     let pageMessages=[]
 
-    if(activeFolder==='Inbox'&&allInboxesMode){
+    if(activeFolder==='Sent'&&allInboxesMode){
+      pageMessages=await loadAuthorizedSent({pageSize:100})
+      mailHasMore=false
+    }else if(activeFolder==='Inbox'&&allInboxesMode){
       const result=await callMailFunction({
         action:'all_inboxes',
         query:'',
