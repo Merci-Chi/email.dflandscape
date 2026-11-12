@@ -10,9 +10,13 @@ if(!session?.user){location.replace('index.html');throw new Error('Not authentic
 
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
 let allInboxesMode=true
+const combinedFolder=()=>activeFolder==='Inbox'||activeFolder==='Sent'
+const combinedFolderActive=()=>combinedFolder()&&allInboxesMode
+const folderHeading=()=>combinedFolderActive()?(activeFolder==='Sent'?'All sent':'All inboxes'):(activeFolder==='Junk'?'Spam':activeFolder)
+const folderAddress=()=>combinedFolderActive()?accounts.map(a=>a.email).join(' · '):(activeAccount?.email||'')
 const sessionMailboxCache=new Map()
 function sessionMailboxCacheKey(mailbox=activeAccount?.email,folder=activeFolder){
-  if(folder==='Inbox'&&allInboxesMode)return `ALL|Inbox|${mailSort?.value||'newest'}`
+  if(allInboxesMode&&(folder==='Inbox'||folder==='Sent'))return `ALL|${folder}|${mailSort?.value||'newest'}`
   return mailbox?`${mailbox}|${folder}|${mailSort?.value||'newest'}`:''
 }
 function saveSessionMailboxCache(){
@@ -878,12 +882,33 @@ function clearFullSearchCache(){
   fullSearchKey=''
   fullSearchPromise=null
 }
+// Fetch Sent separately for each authorized mailbox. The Edge Function checks
+// access to each mailbox; client-side aggregation never grants permissions.
+async function loadAuthorizedSent({query='',pageSize=100}={}){
+  if(!accounts.length)return []
+  const results=await Promise.all(accounts.map(async account=>{
+    const result=await callMailFunction({
+      action:'list',folder:'Sent',mailbox_email:account.email,
+      query,page:0,page_size:pageSize,sort:mailSort?.value||'newest'
+    })
+    const rows=Array.isArray(result)?result:(result?.messages||[])
+    return rows.map(message=>({...message,mailbox_email:account.email,sourceFolder:'Sent'}))
+  }))
+  const all=results.flat()
+  const newest=(mailSort?.value||'newest')!=='oldest'
+  all.sort((a,b)=>{
+    const diff=new Date(b.date||0).getTime()-new Date(a.date||0).getTime()
+    return newest?diff:-diff
+  })
+  return all
+}
+
 async function loadFullMailboxHeaders(){
   if(!activeAccount)return []
 
   const query=(searchInput?.value||'').trim()
-  const key=activeFolder==='Inbox'&&allInboxesMode
-    ?`ALL|Inbox|${mailSort?.value||'newest'}|${query}`
+  const key=combinedFolderActive()
+    ?`ALL|${activeFolder}|${mailSort?.value||'newest'}|${query}`
     :`${activeAccount.email}|${activeFolder}|${mailSort?.value||'newest'}|${query}`
 
   if(fullSearchKey===key&&fullSearchMessages.length)return fullSearchMessages
@@ -891,7 +916,13 @@ async function loadFullMailboxHeaders(){
 
   fullSearchKey=key
   fullSearchPromise=(async()=>{
-    if(activeFolder==='Inbox'&&allInboxesMode){
+    if(activeFolder==='Sent'&&allInboxesMode){
+      return loadAuthorizedSent({query,pageSize:100})
+    }
+    if(activeFolder==='Sent'&&allInboxesMode){
+      pageMessages=await loadAuthorizedSent({pageSize:100})
+      mailHasMore=false
+    }else if(activeFolder==='Inbox'&&allInboxesMode){
       const result=await callMailFunction({
         action:'all_inboxes',
         query,
@@ -963,12 +994,8 @@ async function loadMessages({reset=true,force=false}={}){
   }
 
   if(reset&&!force&&restoreSessionMailboxCache()){
-    mailboxHeading.textContent=activeFolder==='Inbox'
-      ?(allInboxesMode?'All inboxes':'Inbox')
-      :(activeFolder==='Junk'?'Spam':activeFolder)
-    mailboxAddress.textContent=activeFolder==='Inbox'&&allInboxesMode
-      ?accounts.map(a=>a.email).join(' · ')
-      :activeAccount.email
+    mailboxHeading.textContent=folderHeading()
+    mailboxAddress.textContent=folderAddress()
     await loadSnoozedState()
     renderMessages()
     updateLoadMore()
@@ -989,12 +1016,8 @@ async function loadMessages({reset=true,force=false}={}){
     renderMessageListSkeleton(previousCount)
   }
 
-  mailboxHeading.textContent=activeFolder==='Inbox'
-    ?(allInboxesMode?'All inboxes':'Inbox')
-    :(activeFolder==='Junk'?'Spam':activeFolder)
-  mailboxAddress.textContent=activeFolder==='Inbox'&&allInboxesMode
-    ?accounts.map(a=>a.email).join(' · ')
-    :activeAccount.email
+  mailboxHeading.textContent=folderHeading()
+  mailboxAddress.textContent=folderAddress()
 
   if(loadMoreBtn){
     loadMoreBtn.disabled=true
@@ -1178,7 +1201,8 @@ function renderMessages(){
     const selected=selectedIds.has(key)
     const unread=thread.messages.some(x=>x.seen===false)
     const active=activeMessageId&&thread.messages.some(x=>messageKey(x)===String(activeMessageId))
-    const sourceLabel=activeFolder==='Inbox'&&allInboxesMode&&m.mailbox_email?`${m.mailbox_email} · `:''
+    const sourceLabel=combinedFolderActive()&&m.mailbox_email?`${m.mailbox_email} · `:''
+    const correspondent=activeFolder==='Sent'?(m.to||m.cc||m.from||'Unknown recipient'):senderDisplayName(m)
     return `<div class="message-swipe-shell" data-shell-id="${esc(key)}">
       <div class="swipe-action swipe-action-read">${m.seen===false?'Read':'Unread'}</div>
       <div class="swipe-action swipe-action-delete">Delete</div>
@@ -1188,7 +1212,7 @@ function renderMessages(){
         </button>
         <button class="message-star ${m.flagged?'active':''}" data-star-id="${esc(key)}" type="button" aria-label="${m.flagged?'Unstar':'Star'} message">★</button>
         <button class="message-row ${unread?'unread':''} ${active?'active':''}" data-id="${esc(key)}">
-          <span class="sender">${esc(senderDisplayName(m))}</span>
+          <span class="sender">${esc(correspondent)}</span>
           <span class="time">${esc(formatDate(m.date))}</span>
           <span class="subject">${esc(m.subject||'(No subject)')}${thread.count>1?` <span class="thread-count">(${thread.count})</span>`:''}</span>
           <span class="snippet">${esc(sourceLabel)}${thread.count>1?'Conversation · ':''}${esc(senderDisplayEmail(m))}</span>
@@ -2056,7 +2080,7 @@ searchInput?.addEventListener('input',()=>{
     return
   }
 
-  const key=activeFolder==='Inbox'&&allInboxesMode
+  const key=combinedFolderActive()
     ?`ALL|Inbox|${mailSort?.value||'newest'}`
     :`${activeAccount?.email||''}|${activeFolder}|${mailSort?.value||'newest'}`
   if(fullSearchKey===key&&fullSearchMessages.length){
@@ -2140,7 +2164,7 @@ async function refreshMailboxKeepingSelection(){
 
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{
   activeFolder=btn.dataset.folder||'Inbox'
-  allInboxesMode=activeFolder==='Inbox'
+  allInboxesMode=activeFolder==='Inbox'||activeFolder==='Sent'
   clearFullSearchCache()
   activeMessageId=null
   activeMessage=null
@@ -2149,12 +2173,8 @@ document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',a
   document.querySelectorAll('.folder').forEach(x=>x.classList.toggle('active',x===btn))
   renderAccounts()
   if(mailFilter)mailFilter.value='all'
-  mailboxHeading.textContent=activeFolder==='Inbox'
-    ?'All inboxes'
-    :(activeFolder==='Junk'?'Spam':activeFolder)
-  mailboxAddress.textContent=activeFolder==='Inbox'
-    ?accounts.map(a=>a.email).join(' · ')
-    :(activeAccount?.email||'')
+  mailboxHeading.textContent=folderHeading()
+  mailboxAddress.textContent=folderAddress()
 
   if(restoreSessionMailboxCache()){
     await loadSnoozedState()
