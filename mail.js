@@ -10,6 +10,9 @@ if(!session?.user){location.replace('index.html');throw new Error('Not authentic
 
 let accounts=[],activeAccount=null,activeFolder='Inbox',activeMessageId=null,currentMessages=[],activeMessage=null
 let allInboxesMode=true
+let currentUserIsMailAdmin=false
+const recoverSentBtn=document.getElementById('recoverSentBtn')
+function updateRecoverSentButton(){if(recoverSentBtn)recoverSentBtn.hidden=!(currentUserIsMailAdmin&&activeFolder==='Sent')}
 const combinedFolder=()=>activeFolder==='Inbox'||activeFolder==='Sent'
 const combinedFolderActive=()=>combinedFolder()&&allInboxesMode
 const folderHeading=()=>combinedFolderActive()?(activeFolder==='Sent'?'All sent':'All inboxes'):(activeFolder==='Junk'?'Spam':activeFolder)
@@ -783,11 +786,15 @@ async function loadAdminVisibility(){
 
     if(error)throw error
     const isAdmin=(data||[]).some(row=>row?.active===true&&String(row?.role||'').toLowerCase()==='admin')
+    currentUserIsMailAdmin=isAdmin
     if(manageEmailsLink)manageEmailsLink.hidden=!isAdmin
+    updateRecoverSentButton()
     return isAdmin
   }catch(error){
     console.error('Unable to check admin access:',error)
+    currentUserIsMailAdmin=false
     if(manageEmailsLink)manageEmailsLink.hidden=true
+    updateRecoverSentButton()
     return false
   }
 }
@@ -888,6 +895,23 @@ function renderAccounts(){
     closeMobileMenu()
   })
 }
+recoverSentBtn?.addEventListener('click',async()=>{
+  if(!currentUserIsMailAdmin||activeFolder!=='Sent')return
+  if(!confirm('Restore recoverable previously sent emails from Supabase inbox copies into their original Hostinger Sent folders? This will NOT resend emails to recipients.'))return
+  recoverSentBtn.disabled=true
+  recoverSentBtn.textContent='Restoring…'
+  try{
+    const result=await callMailFunction({action:'recover_sent'})
+    for(const key of sessionMailboxCache.keys())if(key.startsWith('ALL|Sent|')||key.includes('|Sent|'))sessionMailboxCache.delete(key)
+    clearFullSearchCache()
+    await loadMessages({reset:true,force:true})
+    const summary=`${result?.recovered||0} restored; ${result?.alreadyPresent||0} already present; ${result?.candidates||0} recoverable messages.`
+    const errors=Array.isArray(result?.failed)?result.failed:[]
+    alert(summary+(errors.length?'\\nErrors: '+errors.join('; '):''))
+  }catch(error){alert('Sent recovery failed: '+(error?.message||String(error)))}
+  finally{recoverSentBtn.disabled=false;recoverSentBtn.textContent='Restore saved Sent'}
+})
+
 function clearFullSearchCache(){
   fullSearchMessages=[]
   fullSearchKey=''
@@ -2175,6 +2199,7 @@ async function refreshMailboxKeepingSelection(){
 
 document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',async()=>{
   activeFolder=btn.dataset.folder||'Inbox'
+  updateRecoverSentButton()
   allInboxesMode=activeFolder==='Inbox'||activeFolder==='Sent'
   clearFullSearchCache()
   activeMessageId=null
