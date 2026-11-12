@@ -49,7 +49,10 @@ function updateOpenMessageUrl(mailbox='',folder='',uid=''){
   if(uid)url.searchParams.set('uid',String(uid))
   else url.searchParams.delete('uid')
 
-  history.replaceState({},'',url.pathname+url.search+url.hash)
+  url.searchParams.set('viewFolder',activeFolder)
+  url.searchParams.set('viewMailbox',activeAccount?.email||'')
+  url.searchParams.set('viewCombined',allInboxesMode?'1':'0')
+  history.replaceState(history.state||{},'',url.pathname+url.search+url.hash)
 }
 function saveOpenMessage(){
   if(!activeMessageId)return
@@ -67,14 +70,20 @@ function clearOpenMessage(){
   url.searchParams.delete('mailbox')
   url.searchParams.delete('folder')
   url.searchParams.delete('uid')
-  history.replaceState({},'',url.pathname+url.search+url.hash)
+  url.searchParams.set('viewFolder',activeFolder)
+  url.searchParams.set('viewMailbox',activeAccount?.email||'')
+  url.searchParams.set('viewCombined',allInboxesMode?'1':'0')
+  history.replaceState({...history.state,mailReaderEntry:false},'',url.pathname+url.search+url.hash)
 }
 function getSavedOpenMessage(){
   const params=new URLSearchParams(location.search)
   const mailbox=params.get('mailbox')||''
   const folder=params.get('folder')||''
   const uid=params.get('uid')||''
-  return mailbox||folder||uid?{mailbox,folder,uid}:null
+  const viewFolder=params.get('viewFolder')
+  const viewMailbox=params.get('viewMailbox')
+  const viewCombined=params.get('viewCombined')
+  return mailbox||folder||uid||viewFolder?{mailbox,folder,uid,viewFolder,viewMailbox,viewCombined}:null
 }
 let selectedIds=new Set(),selectionMode=false,longPressTimer=null
 let mailPage=0,mailPageSize=20,mailHasMore=false,mailLoading=false,searchTimer=null,pendingMailReload=false
@@ -746,16 +755,16 @@ async function applyLaunchTarget(){
   const folder=saved?.folder||'Inbox'
   const uid=saved?.uid||''
 
-  if(mailbox){
-    const match=accounts.find(a=>a.email.toLowerCase()===String(mailbox).toLowerCase())
-    if(match){
-      activeAccount=match
-      allInboxesMode=false
-    }
+  const viewMailbox=saved?.viewMailbox||mailbox
+  if(viewMailbox){
+    const match=accounts.find(a=>a.email.toLowerCase()===String(viewMailbox).toLowerCase())
+    if(match)activeAccount=match
   }
 
-  activeFolder=folder||'Inbox'
-  if(activeFolder==='Sent'||(!mailbox&&activeFolder==='Inbox'))allInboxesMode=true
+  activeFolder=saved?.viewFolder||folder||'Inbox'
+  if(saved?.viewCombined==='1')allInboxesMode=true
+  else if(saved?.viewCombined==='0')allInboxesMode=false
+  else allInboxesMode=activeFolder==='Sent'||(!mailbox&&activeFolder==='Inbox')
   renderAccounts()
   document.querySelectorAll('.folder').forEach(btn=>btn.classList.toggle('active',(btn.dataset.folder||'Inbox')===activeFolder))
 
@@ -763,7 +772,7 @@ async function applyLaunchTarget(){
   if(uid&&activeAccount){
     activeMessageId=uid
     renderReaderSkeleton()
-    selectedLoad=loadMessage(uid,{sourceFolderOverride:activeFolder})
+    selectedLoad=loadMessage(uid,{sourceFolderOverride:folder,mailboxOverride:mailbox})
   }
 
   const mailboxLoad=activeAccount?loadMessages({reset:true}):null
@@ -1239,6 +1248,17 @@ function renderMessages(){
 
   messageList.querySelectorAll('[data-id]').forEach(r=>r.onclick=e=>{
     if(selectionMode){e.preventDefault();toggleSelected(r.dataset.id);return}
+    const message=findMessage(r.dataset.id)
+    if(message){
+      const entry=new URL(location.href)
+      entry.searchParams.set('mailbox',message.mailbox_email||activeAccount?.email||'')
+      entry.searchParams.set('folder',message.sourceFolder||activeFolder)
+      entry.searchParams.set('uid',String(message.uid))
+      entry.searchParams.set('viewFolder',activeFolder)
+      entry.searchParams.set('viewMailbox',activeAccount?.email||'')
+      entry.searchParams.set('viewCombined',allInboxesMode?'1':'0')
+      history.pushState({mailReaderEntry:true},'',entry.pathname+entry.search+entry.hash)
+    }
     loadMessage(r.dataset.id)
   })
   messageList.querySelectorAll('[data-star-id]').forEach(btn=>btn.onclick=async e=>{e.stopPropagation();if(selectionMode){toggleSelected(btn.dataset.starId);return}await toggleMessageFlag(btn.dataset.starId)})
@@ -1670,7 +1690,7 @@ function renderLoadedMessage(message,threadMessages=[message],{preserveScroll=fa
   const sourceFolder=message.sourceFolder||messageFolder(message.uid)||activeFolder
   const previousScroll=preserveScroll?readerPanel.scrollTop:0
   readerPanel.innerHTML=`<article class="reader reader-rich">
-    <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(activeFolder)}</button>
+    <button class="mobile-reader-back" id="mobileReaderBack" type="button">← Back to ${esc(folderHeading())}</button>
     <div class="message-actions">
       <div class="message-action-row message-action-row-primary">
         <button type="button" class="message-action-btn" id="replyMessageBtn" aria-label="Reply" title="Reply"><i data-lucide="reply"></i><span>Reply</span></button>
@@ -1749,6 +1769,10 @@ async function loadMessage(keyOrUid,{sourceFolderOverride='',mailboxOverride=''}
   }
 }
 function closeMobileReader(){
+  if(history.state?.mailReaderEntry&&new URLSearchParams(location.search).has('uid')){
+    history.back()
+    return
+  }
   readerPanel?.classList.remove('mobile-open')
   activeMessageId=null
   activeMessage=null
@@ -2221,6 +2245,30 @@ document.querySelectorAll('.folder').forEach(btn=>btn.addEventListener('click',a
   renderReader()
   closeMobileMenu()
 }))
+window.addEventListener('popstate',async()=>{
+  const saved=getSavedOpenMessage()
+  const folder=saved?.viewFolder||saved?.folder||'Inbox'
+  const mailbox=saved?.viewMailbox||saved?.mailbox||''
+  const match=accounts.find(a=>a.email.toLowerCase()===String(mailbox).toLowerCase())
+  if(match)activeAccount=match
+  activeFolder=folder
+  allInboxesMode=saved?.viewCombined==='1'?true:saved?.viewCombined==='0'?false:activeFolder==='Sent'||(!saved?.mailbox&&activeFolder==='Inbox')
+  document.querySelectorAll('.folder').forEach(btn=>btn.classList.toggle('active',(btn.dataset.folder||'Inbox')===activeFolder))
+  renderAccounts()
+  renderComposeAccounts()
+  mailboxHeading.textContent=folderHeading()
+  mailboxAddress.textContent=folderAddress()
+  clearFullSearchCache()
+  if(!saved?.uid){
+    activeMessageId=null
+    activeMessage=null
+    renderReader()
+    await loadMessages({reset:true})
+    return
+  }
+  await loadMessages({reset:true})
+  await loadMessage(saved.uid,{sourceFolderOverride:saved.folder,mailboxOverride:saved.mailbox})
+})
 document.getElementById('refreshBtn')?.addEventListener('click',refreshMailboxKeepingSelection)
 document.getElementById('composeBtn')?.addEventListener('click',openNewComposer)
 
