@@ -322,7 +322,18 @@ async function sendPendingUndoMessage(){
   const toast=document.getElementById('undoSendToast')
 
   try{
-    await callMailFunction({action:'send',...payload})
+    const result=await callMailFunction({action:'send',...payload})
+    // A newly sent message changes the server's Sent folder. Never display an old
+    // cached empty Sent folder after navigating back from the composer.
+    for(const key of sessionMailboxCache.keys()){
+      if(key.startsWith('ALL|Sent|')||key.includes('|Sent|'))sessionMailboxCache.delete(key)
+    }
+    for(const key of Object.keys(localStorage)){
+      if(key.includes('Sent')&&key.includes('dfl'))localStorage.removeItem(key)
+    }
+    clearFullSearchCache()
+    if(activeFolder==='Sent')loadMessages({reset:true,force:true})
+    if(result?.sentSaved===false)console.warn('Email delivered but server could not save a Sent copy.')
     if(toast){
       toast.querySelector('span').textContent='Sent.'
       setTimeout(()=>toast.hidden=true,1400)
