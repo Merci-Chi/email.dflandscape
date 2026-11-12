@@ -1250,6 +1250,16 @@ function renderMessages(){
     if(selectionMode){e.preventDefault();toggleSelected(r.dataset.id);return}
     const message=findMessage(r.dataset.id)
     if(message){
+      // Store the list state in the preceding history entry before opening mail.
+      // Otherwise browser Back can land on an unscoped default inbox URL.
+      const origin=new URL(location.href)
+      origin.searchParams.delete('uid')
+      origin.searchParams.delete('mailbox')
+      origin.searchParams.delete('folder')
+      origin.searchParams.set('viewFolder',activeFolder)
+      origin.searchParams.set('viewMailbox',activeAccount?.email||'')
+      origin.searchParams.set('viewCombined',allInboxesMode?'1':'0')
+      history.replaceState({mailReaderEntry:false},'',origin.pathname+origin.search+origin.hash)
       const entry=new URL(location.href)
       entry.searchParams.set('mailbox',message.mailbox_email||activeAccount?.email||'')
       entry.searchParams.set('folder',message.sourceFolder||activeFolder)
